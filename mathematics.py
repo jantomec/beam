@@ -40,47 +40,8 @@ def expSO3(R: np.ndarray) -> np.ndarray:
         (1 - np.cos(norm_R)) * R @ R / norm_R**2
     )
 
-class quat:
-    """
-    Quaternion is: [qx, qy, qz, qw]
-    """
-    def __init__(self, a):
-        a = np.array(a)
-        if a.shape == (4,):
-            self.val = np.array(a, dtype=np.float)
-        elif a.shape == (3,):
-            self.val = _rotvec_to_quat(a)
-        elif a.shape == (3,3):
-            self.val = _spurrier_quat_extraction(a)
     
-    def __repr__(self):
-        return self.val.__repr__()
-    
-    def __mul__(self, other):
-        """
-        Hamilton product between two quaternions, also operator *.
-        """
-        h = quat(np.zeros(shape=(4)))
-        h.val[0] = (self.val[3]*other.val[0] + self.val[0]*other.val[3] +
-                self.val[1]*other.val[2] - self.val[2]*other.val[1])
-        h.val[1] = (self.val[3]*other.val[1] - self.val[0]*other.val[2] +
-                self.val[1]*other.val[3] + self.val[2]*other.val[0])
-        h.val[2] = (self.val[3]*other.val[2] + self.val[0]*other.val[1] +
-                self.val[1]*other.val[0] + self.val[2]*other.val[3])
-        h.val[3] = (self.val[3]*other.val[3] - self.val[0]*other.val[0] +
-                self.val[1]*other.val[1] - self.val[2]*other.val[2])
-        return h
-    
-    def normalize(self):
-        self.val = normalized(self.val)
-
-    def as_rotvec(self):
-        return _quat_to_rotvec(self.val)
-    
-    def as_rotmat(self):
-        return _quat_to_rotmat(self.val)
-    
-def _rotvec_to_quat(rv):
+def rotvec_to_quat(rv):
     angle = np.linalg.norm(rv)
     a = rv
     if angle != 0.0:
@@ -92,7 +53,7 @@ def _rotvec_to_quat(rv):
     q[3] = np.cos(angle/2.0)
     return q
 
-def _quat_to_rotvec(q):
+def quat_to_rotvec(q):
     n = np.linalg.norm(q[:3])
     rv = np.zeros(shape=(3))
     if n != 0.0:
@@ -104,7 +65,7 @@ def _quat_to_rotvec(q):
         rv = angle * q[:3] / n
     return rv
 
-def _spurrier_quat_extraction(R):
+def spurrier_quat_extraction(R):
     """
      Extraction of quat from rotation matrix R.
     """
@@ -136,9 +97,27 @@ def _spurrier_quat_extraction(R):
 
     return normalized(q)
 
-def _quat_to_rotmat(q):
+def rotmat_to_quat(R):
+    return spurrier_quat_extraction(R)
+
+def quat_to_rotmat(q):
     qc = normalized(q)
     S = skew(qc[:3])
     S2 = S @ S
     R = np.identity(3) + 2.0*qc[3]*S + 2.0*S2
     return R
+
+def hampr(ql: np.ndarray, qr: np.ndarray) -> np.ndarray:
+    """
+    Hamilton product between two quaternions.
+    """
+    h = np.zeros(shape=(4))
+    h[0] = (ql[3]*qr[0] + ql[0]*qr[3] +
+            ql[1]*qr[2] - ql[2]*qr[1])
+    h[1] = (ql[3]*qr[1] - ql[0]*qr[2] +
+            ql[1]*qr[3] + ql[2]*qr[0])
+    h[2] = (ql[3]*qr[2] + ql[0]*qr[1] +
+            ql[1]*qr[0] + ql[2]*qr[3])
+    h[3] = (ql[3]*qr[3] - ql[0]*qr[0] +
+            ql[1]*qr[1] - ql[2]*qr[2])
+    return h
