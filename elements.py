@@ -57,13 +57,20 @@ class SimoBeam(Element):
         # --------------------------------------------------------------
         # initial rotation quaternions
         for i in range(len(self.int_pts)):
+            self.int_pts[i].rot = np.zeros(
+                shape=(4,self.int_pts[i].n_pts)
+            )
             dx = coordinates @ self.int_pts[i].Ndis
             for g in range(self.int_pts[i].n_pts):
                 rotmat = np.zeros(shape=(3,3))
                 rotmat[:,0] = mt.normalized(dx[:,g])
-                rotmat[:,1] = mt.normalized(np.cross(ref_vec, rotmat[:,0]))
-                rotmat[:,2] = np.cross(rotmat[:,0], rotmat[:,1])
-                
+                rotmat[:,1] = mt.normalized(
+                    np.cross(ref_vec, rotmat[:,0])
+                )
+                rotmat[:,2] = np.cross(
+                    rotmat[:,0], rotmat[:,1]
+                )
+                self.int_pts[i].rot[:,g] = mt.rotmat_to_quat(rotmat)
 
         # --------------------------------------------------------------
         # initial element length
