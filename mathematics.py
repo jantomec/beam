@@ -157,5 +157,5 @@ def rotate2(q: np.ndarray, m: np.ndarray) -> np.ndarray:
     """
     p = np.zeros_like(m)
     for i in range(3):
-        p(:,i) = rotate(q, m(:,i))
+        p[:,i] = rotate(q, m[:,i])
     return p
