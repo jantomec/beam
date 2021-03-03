@@ -1,6 +1,7 @@
 import numpy as np
 import structures as st
 import interpolation as intp
+import mathematics as mt
 
 
 class Element:
@@ -16,6 +17,7 @@ class SimoBeam(Element):
         self, 
         nodes,
         coordinates: np.ndarray,
+        ref_vec: np.ndarray,
         area: float,
         density: float,
         elastic_modulus: float,
@@ -53,8 +55,19 @@ class SimoBeam(Element):
         ]
 
         # --------------------------------------------------------------
+        # initial rotation quaternions
+        for i in range(len(self.int_pts)):
+            dx = coordinates @ self.int_pts[i].Ndis
+            for g in range(self.int_pts[i].n_pts):
+                rotmat = np.zeros(shape=(3,3))
+                rotmat[:,0] = mt.normalized(dx[:,g])
+                rotmat[:,1] = mt.normalized(np.cross(ref_vec, rotmat[:,0]))
+                rotmat[:,2] = np.cross(rotmat[:,0], rotmat[:,1])
+                
+
+        # --------------------------------------------------------------
         # initial element length
-        dx = coordinates @ self.int_pts[1].Ndis
+        # reduced int pts dx from before is reused here
         intg = np.zeros(shape=(3))
         for i in range(len(intg)):
             intg[i] = np.dot(dx[i], self.int_pts[1].wgt)
