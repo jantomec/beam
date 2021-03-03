@@ -54,11 +54,10 @@ class SimoBeam(Element):
 
         # --------------------------------------------------------------
         # initial element length
-        dx = self.int_pts[1].Ndis @ coordinates
-        print(dx)
+        dx = coordinates @ self.int_pts[1].Ndis
         intg = np.zeros(shape=(3))
         for i in range(len(intg)):
-            intg[i] = np.dot(dx[:, i], self.int_pts[1].wgt)
+            intg[i] = np.dot(dx[i], self.int_pts[1].wgt)
         L = np.linalg.norm(intg)
 
         # --------------------------------------------------------------
