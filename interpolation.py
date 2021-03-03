@@ -19,9 +19,9 @@ def lagrange_poly(
     degree: int,
     eval_pts: np.ndarray
 ) -> np.ndarray:
-    N = np.zeros(shape=(len(eval_pts), degree+1))
+    N = np.zeros(shape=(degree+1, len(eval_pts)))
     for j in range(degree+1):
-        N[:, j] = _lagrange_poly_(
+        N[j] = _lagrange_poly_(
             root=j,
             degree=degree,
             eval_pts=eval_pts
@@ -50,9 +50,9 @@ def lagrange_poly_d(
     degree: int,
     eval_pts: np.ndarray
 ) -> np.ndarray:
-    dN = np.zeros(shape=(len(eval_pts), degree+1))
+    dN = np.zeros(shape=(degree+1, len(eval_pts)))
     for j in range(degree+1):
-        dN[:, j] = _lagrange_poly_d_(
+        dN[j] = _lagrange_poly_d_(
             root=j,
             degree=degree,
             eval_pts=eval_pts
