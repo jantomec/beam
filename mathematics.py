@@ -3,17 +3,14 @@ import numpy as np
 
 def normalized(a, axis=-1, order=2):
     """
-    Return normalized input, either a vector or a matrix.
-    Copied from: https://stackoverflow.com/questions/3898572/what-is-the-standard-python-docstring-format
+    Return normalized vector.
 
-    :param a: vector or matrix
-    :param axis: normalize along this axis
+    :param a: vector
     :param order: normalization order
     :returns: normalized input
     """
-    l2 = np.atleast_1d(np.linalg.norm(a, order, axis))
-    l2[l2==0] = 1
-    return a / np.expand_dims(l2, axis)
+    l2 = np.linalg.norm(a, ord=order)
+    return a / l2
 
 def skew(r: np.ndarray) -> np.ndarray:
     R = np.zeros(shape=(3,3))
@@ -42,3 +39,15 @@ def expSO3(R: np.ndarray) -> np.ndarray:
         np.sin(norm_R) * R / norm_R + 
         (1 - np.cos(norm_R)) * R @ R / norm_R**2
     )
+
+def hamilton_prod(ql: np.ndarray, qr: np.ndarray) -> np.ndarray:
+    h = np.zeros(shape=(4))
+    h[0] = (ql[3]*qr[0] + ql[0]*qr[3] +
+            ql[1]*qr[2] - ql[2]*qr[1])
+    h[1] = (ql[3]*qr[1] - ql[0]*qr[2] +
+            ql[1]*qr[3] + ql[2]*qr[0])
+    h[2] = (ql[3]*qr[2] + ql[0]*qr[1] +
+            ql[1]*qr[0] + ql[2]*qr[3])
+    h[3] = (ql[3]*qr[3] - ql[0]*qr[0] +
+            ql[1]*qr[1] - ql[2]*qr[2])
+    return h
