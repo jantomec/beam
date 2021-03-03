@@ -74,7 +74,7 @@ class BeamIntegrationPoint:
         self.om = None
         self.w = None
         self.a = None
-        self.q = None  # external distributed load
+        self.q = None
         self.f = np.zeros(shape=(6,self.n_pts))
 
 
@@ -86,8 +86,8 @@ class BeamElementProperties:
         density: float,
         elastic_modulus: float,
         shear_modulus: float,
-        intertia_primary: float,
-        intertia_secondary: float,
+        inertia_primary: float,
+        inertia_secondary: float,
         inertia_torsion: float,
         shear_coefficient: float
     ):
@@ -96,8 +96,8 @@ class BeamElementProperties:
         self.rho = density
         self.E = elastic_modulus
         self.G = shear_modulus
-        self.I1 = intertia_primary
-        self.I2 = intertia_secondary
+        self.I1 = inertia_primary
+        self.I2 = inertia_secondary
         self.It = inertia_torsion
         self.ks = shear_coefficient
         self.C = np.zeros(shape=(6,6))
