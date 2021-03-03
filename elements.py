@@ -88,22 +88,3 @@ def assembly_matrix(
             (i*m_dof + local_dof[0]): (i*m_dof + local_dof[-1] + 1)
         ] = np.identity(len(local_dof))
     return A
-
-def constitutive_matrix(
-    E: float,
-    nu: float,
-    A: float,
-    I11: float,
-    I22: float,
-    J: float
-) -> np.ndarray:
-
-    G = E / (1+nu)/2
-    C = np.zeros((6,6))
-    C[0,0] = E * A
-    C[1,1] = G * A
-    C[2,2] = G * A
-    C[3,3] = G * J
-    C[4,4] = E * I11
-    C[5,5] = E * I22
-    return C
