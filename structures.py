@@ -14,11 +14,12 @@ class BeamIntegrationPoint:
             [int, np.ndarray], np.ndarray
         ],
         n_nodes: int,
-        rotation: np.ndarray,
+        rotation: np.ndarray = None,
         curvature: np.ndarray = None,
         angular_velocity: np.ndarray = None,
         angular_acceleration: np.ndarray = None
     ):
+        self.n_pts = len(pointsLocation)
         self.loc = pointsLocation
         self.wgt = weights
         self.Ndis = displacement_interpolation(
