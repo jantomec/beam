@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def lagrange_poly_(
+def _lagrange_poly_(
     root: int,
     degree: int,
     eval_pts: np.ndarray
@@ -19,16 +19,16 @@ def lagrange_poly(
     degree: int,
     eval_pts: np.ndarray
 ) -> np.ndarray:
-    N = np.zeros(shape=(degree+1, len(eval_pts)))
+    N = np.zeros(shape=(len(eval_pts), degree+1))
     for j in range(degree+1):
-        N[j] = lagrange_poly_(
+        N[:, j] = _lagrange_poly_(
             root=j,
             degree=degree,
             eval_pts=eval_pts
         )
     return N
 
-def lagrange_poly_d_(
+def _lagrange_poly_d_(
     root: int,
     degree: int,
     eval_pts: np.ndarray
@@ -50,11 +50,11 @@ def lagrange_poly_d(
     degree: int,
     eval_pts: np.ndarray
 ) -> np.ndarray:
-    N = np.zeros(shape=(degree+1, len(eval_pts)))
+    dN = np.zeros(shape=(len(eval_pts), degree+1))
     for j in range(degree+1):
-        N[j] = lagrange_poly_d_(
+        dN[:, j] = _lagrange_poly_d_(
             root=j,
             degree=degree,
             eval_pts=eval_pts
         )
-    return N
+    return dN
