@@ -15,7 +15,7 @@ def normalized(a, axis=-1, order=2):
     l2[l2==0] = 1
     return a / np.expand_dims(l2, axis)
 
-def skew(r):
+def skew(r: np.ndarray) -> np.ndarray:
     R = np.zeros(shape=(3,3))
     R[0, 1] = - r[2]
     R[0, 2] = r[1]
@@ -25,12 +25,9 @@ def skew(r):
     R[2, 1] = r[0]
     return R
 
-def antiskew(R):
+def antiskew(R: np.ndarray) -> np.ndarray:
     r = np.zeros(shape=(3))
     r[0] = R[2,1]
     r[1] = R[0,2]
     r[2] = R[1,2]
     return r
-
-
-    
