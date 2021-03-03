@@ -13,7 +13,11 @@ class BeamIntegrationPoint:
         rotation_interpolation: Callable[
             [int, np.ndarray], np.ndarray
         ],
-        n_nodes: int
+        n_nodes: int,
+        rotation: np.ndarray,
+        curvature: np.ndarray = None,
+        angular_velocity: np.ndarray = None,
+        angular_acceleration: np.ndarray = None
     ):
         self.loc = pointsLocation
         self.wgt = weights
@@ -25,6 +29,11 @@ class BeamIntegrationPoint:
             n_nodes - 1,
             pointsLocation
         )
+        self.rot = rotation
+        self.om = curvature
+        self.w = angular_velocity
+        self.a = angular_acceleration
+
 
 class BeamElementProperties:
     def __init__(
