@@ -32,8 +32,8 @@ class BeamElementProperties:
         length: float,
         area: float,
         density: float,
-        elastic_modul: float,
-        shear_modul: float,
+        elastic_modulus: float,
+        shear_modulus: float,
         intertia_primary: float,
         intertia_secondary: float,
         inertia_torsion: float,
@@ -42,8 +42,8 @@ class BeamElementProperties:
         self.L = length
         self.A = area
         self.rho = density
-        self.E = elastic_modul
-        self.G = shear_modul
+        self.E = elastic_modulus
+        self.G = shear_modulus
         self.I1 = intertia_primary
         self.I2 = intertia_secondary
         self.It = inertia_torsion
