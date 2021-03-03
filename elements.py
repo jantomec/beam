@@ -116,7 +116,109 @@ class SimoBeam(Element):
             inertia_torsion=inertia_torsion,
             shear_coefficient=shear_coefficient
         )
-        
+
+    def stiffness_matrix(
+        self, x
+    ) -> np.ndarray:
+        dx = x @ self.int_pts[1].Ndis
+        K = np.zeros(shape=(12, 12))
+
+        # --------------------------------------------------------------
+        # material part
+        for g in range(self.int_pts[1].n_pts):
+            c = np.zeros(shape=(6,6))
+            # $c = \Pi @ C @ \Pi^T = \Pi (\Pi @ C)^T$ because $C^T = C$
+            q = self.int_pts[1].rot[:,g]
+            c[:3,:3] = mt.rotate2(
+                q,
+                (mt.rotate2(q, self.prop.C[:3,:3])).T
+            )
+            c[3:,3:] = mt.rotate2(
+                q,
+                (mt.rotate2(q, self.prop.C[3:,3:])).T
+            )
+            for i in range(self.n_nodes):
+                Xi_i = Xi_mat(
+                    dx[:,g],
+                    self.int_pts[1].dNdis[i,g],
+                    self.int_pts[1].Nrot[i,g],
+                    self.int_pts[1].dNrot[i,g]
+                )
+                for j in range(self.n_nodes):
+                    Xi_j = Xi_mat(
+                        dx[:,g],
+                        self.int_pts[1].dNdis[j,g],
+                        self.int_pts[1].Nrot[j,g],
+                        self.int_pts[1].dNrot[j,g]
+                    )
+                    K[6*i:6*(i+1), 6*j:6*(j+1)] += (
+                        self.int_pts[1].wgt *
+                        Xi_i @ c @ Xi_j.T
+                    )
+
+        # --------------------------------------------------------------
+        # geometric part
+        for g in range(self.int_pts[1].n_pts):
+            for i in range(self.n_nodes):
+                for j in range(self.n_nodes):
+                    G = np.zeros(shape=(6,6))
+                    G[:3,3:] = (
+                        -mt.skew(self.int_pts[1].f[:3,g]) *
+                        self.int_pts[1].dNdis[i,g] *
+                        self.int_pts[1].Nrot[j,g]
+                    )
+                    G[3:,:3] = (
+                        mt.skew(self.int_pts[1].f[:3,g]) *
+                        self.int_pts[1].dNdis[j,g] *
+                        self.int_pts[1].Nrot[i,g]
+                    )
+                    G[3:,3:] = (
+                        -mt.skew(self.int_pts[1].f[3:,g]) *
+                        self.int_pts[1].dNrot[i,g] *
+                        self.int_pts[1].Nrot[j,g] +
+                        mt.skew(dx[:,g]) @ mt.skew(self.int_pts[1].f[:3,g]) *
+                        self.int_pts[1].Nrot[i,g] *
+                        self.int_pts[1].Nrot[j,g]
+                    )
+                    K[6*i:6*(i+1), 6*j:6*(j+1)] += (
+                        self.int_pts[1].wgt * G
+                    )
+
+        return K
+
+    def stiffness_residual(self) -> np.ndarray:
+        dx = x @ self.int_pts[1].Ndis
+        R = np.zeros(shape=(12))
+        return R
+
+    def mass_matrix(self) -> np.ndarray:
+        K = np.zeros(shape=(12,12))
+        return K
+
+    def mass_residual(self) -> np.ndarray:
+        R = np.zeros(shape=(12))
+        return R
+    
+    def follower_matrix(self) -> np.ndarray:
+        K = np.zeros(shape=(12,12))
+        return K
+    
+    def follower_residual(self) -> np.ndarray:
+        R = np.zeros(shape=(12))
+        return R
+
+def Xi_mat(
+    dx: np.ndarray,
+    dNdis: float,
+    Nrot: float,
+    dNrot: float
+) -> np.ndarray:
+    S = mt.skew(dx)
+    Xi = np.identity(6)
+    Xi[:3] *= dNdis
+    Xi[3:] *= dNrot
+    Xi[3:,:3] = - Nrot * mt.skew(dx)
+    return Xi
 
 def assembly_matrix(
     nodes: np.ndarray,
