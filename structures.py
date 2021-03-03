@@ -1,39 +1,81 @@
 import numpy as np
 from typing import Callable
+import interpolation as intp
 
 
 class BeamIntegrationPoint:
+    """
+    A class with all values, stored in integration points for a beam.
+
+    ...
+
+    Attributes
+    ----------
+    n_pts : int
+        number of integration points
+    loc : np.ndarray, shape=(n_pts,)
+        locations of integration points on the interval [-1, 1]
+    wgt : np.ndarray, shape=(n_pts,)
+        integration weights
+    Ndis : np.ndarray, shape=(n_nodes, n_pts)
+        interpolation function matrix for displacement dof
+    Nrot : np.ndarray, shape=(n_nodes, n_pts)
+        interpolation function matrix for rotation dof
+    rot : np.ndarray, shape=(4,n_pts)
+        quaternion orientation of the cross-section
+    om : np.ndarray, shape=(3,n_pts)
+        curvature vector
+    w : np.ndarray, shape=(3,n_pts)
+        angular velocity vector
+    a : np.ndarray, shape=(3,n_pts)
+        angular acceleration vector
+    q : np.ndarray, shape=(3,n_pts)
+        external distributed line load
+    f : np.ndarray, shape=(3,n_pts)
+        internal distributed forces
+    
+    Methods
+    -------
+    
+    """
     def __init__(
         self,
         pointsLocation: np.ndarray,
         weights: np.ndarray,
-        displacement_interpolation: Callable[
-            [int, np.ndarray], np.ndarray
-        ],
-        rotation_interpolation: Callable[
-            [int, np.ndarray], np.ndarray
-        ],
-        n_nodes: int,
-        rotation: np.ndarray = None,
-        curvature: np.ndarray = None,
-        angular_velocity: np.ndarray = None,
-        angular_acceleration: np.ndarray = None
+        displacement_interpolation: str,
+        rotation_interpolation: str,
+        n_nodes
     ):
+        """
+
+        """
         self.n_pts = len(pointsLocation)
         self.loc = pointsLocation
         self.wgt = weights
-        self.Ndis = displacement_interpolation(
-            n_nodes - 1,
-            pointsLocation
-        )
-        self.Nrot = rotation_interpolation(
-            n_nodes - 1,
-            pointsLocation
-        )
-        self.rot = rotation
-        self.om = curvature
-        self.w = angular_velocity
-        self.a = angular_acceleration
+        if displacement_interpolation == "Lagrange polynoms":
+            self.Ndis = intp.lagrange_poly(
+                n_nodes - 1,
+                pointsLocation
+            )
+            self.dNdis = intp.lagrange_poly_d(
+                n_nodes - 1,
+                pointsLocation
+            )
+        if rotation_interpolation == "Lagrange polynoms":
+            self.Nrot = intp.lagrange_poly(
+                n_nodes - 1,
+                pointsLocation
+            )
+            self.dNrot = intp.lagrange_poly_d(
+                n_nodes - 1,
+                pointsLocation
+            )
+        self.rot = None
+        self.om = None
+        self.w = None
+        self.a = None
+        self.q = None  # external distributed load
+        self.f = np.zeros(shape=(6,self.n_pts))
 
 
 class BeamElementProperties:
