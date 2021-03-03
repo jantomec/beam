@@ -13,16 +13,16 @@ class BeamIntegrationPoint:
         rotation_interpolation: Callable[
             [int, np.ndarray], np.ndarray
         ],
-        nNodes: int
+        n_nodes: int
     ):
         self.loc = pointsLocation
         self.wgt = weights
         self.Ndis = displacement_interpolation(
-            nNodes - 1,
+            n_nodes - 1,
             pointsLocation
         )
         self.Nrot = rotation_interpolation(
-            nNodes - 1,
+            n_nodes - 1,
             pointsLocation
         )
 
