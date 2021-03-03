@@ -40,14 +40,27 @@ def expSO3(R: np.ndarray) -> np.ndarray:
         (1 - np.cos(norm_R)) * R @ R / norm_R**2
     )
 
-def hamilton_prod(ql: np.ndarray, qr: np.ndarray) -> np.ndarray:
-    h = np.zeros(shape=(4))
-    h[0] = (ql[3]*qr[0] + ql[0]*qr[3] +
-            ql[1]*qr[2] - ql[2]*qr[1])
-    h[1] = (ql[3]*qr[1] - ql[0]*qr[2] +
-            ql[1]*qr[3] + ql[2]*qr[0])
-    h[2] = (ql[3]*qr[2] + ql[0]*qr[1] +
-            ql[1]*qr[0] + ql[2]*qr[3])
-    h[3] = (ql[3]*qr[3] - ql[0]*qr[0] +
-            ql[1]*qr[1] - ql[2]*qr[2])
-    return h
+class quat:
+    """
+    Quaternion is: [qx, qy, qz, qw]
+    """
+    def __init__(self, q):
+        self.val = np.array(q, dtype=np.float)
+    def __repr__(self):
+        return self.val.__repr__()
+    def __mul__(self, other):
+        """
+        Hamilton product between two quaternions, also operator *.
+        """
+        h = quat(np.zeros(shape=(4)))
+        h.val[0] = (self.val[3]*other.val[0] + self.val[0]*other.val[3] +
+                self.val[1]*other.val[2] - self.val[2]*other.val[1])
+        h.val[1] = (self.val[3]*other.val[1] - self.val[0]*other.val[2] +
+                self.val[1]*other.val[3] + self.val[2]*other.val[0])
+        h.val[2] = (self.val[3]*other.val[2] + self.val[0]*other.val[1] +
+                self.val[1]*other.val[0] + self.val[2]*other.val[3])
+        h.val[3] = (self.val[3]*other.val[3] - self.val[0]*other.val[0] +
+                self.val[1]*other.val[1] - self.val[2]*other.val[2])
+        return h
+
+
