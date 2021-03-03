@@ -6,15 +6,32 @@ import mathematics as mt
 class Element:
     def __init__(
         self,
-        nodes
+        nodes,
+        local_dof,
+        n_nodes_in_mesh,
+        mesh_dof_per_node
     ):
         self.nodes = np.array(nodes)
         self.n_nodes = len(self.nodes)
+        self.dof = np.array(local_dof)
+        
+        N = mesh_dof_per_node * n_nodes_in_mesh
+        n = len(local_dof)
+        self.assemb = np.zeros(shape=(N,n))
+        for n in self.nodes:
+            self.assemb += assembly_matrix(
+                node=n,
+                local_dof=self.dof,
+                n_nodes_in_mesh=n_nodes_in_mesh,
+                mesh_dof_per_node=mesh_dof_per_node
+            )
 
 class SimoBeam(Element):
     def __init__(
         self, 
         nodes,
+        n_nodes_in_mesh: int,
+        mesh_dof_per_node: int,
         ref_vec: np.ndarray,
         coordinates: np.ndarray,
         angular_velocities: np.ndarray = None,
@@ -31,8 +48,12 @@ class SimoBeam(Element):
     ):
         # --------------------------------------------------------------
         # nodes
-        super().__init__(nodes)
-        self.n_dof_per_node = 6
+        super().__init__(
+            nodes,
+            [0,1,2,3,4,5],
+            n_nodes_in_mesh,
+            mesh_dof_per_node
+        )
 
         # --------------------------------------------------------------
         # defualt values
@@ -117,9 +138,7 @@ class SimoBeam(Element):
             shear_coefficient=shear_coefficient
         )
 
-    def stiffness_matrix(
-        self, x
-    ) -> np.ndarray:
+    def stiffness_matrix(self, x: np.ndarray) -> np.ndarray:
         dx = x @ self.int_pts[1].Ndis
         K = np.zeros(shape=(12, 12))
 
@@ -152,7 +171,7 @@ class SimoBeam(Element):
                         self.int_pts[1].dNrot[j,g]
                     )
                     K[6*i:6*(i+1), 6*j:6*(j+1)] += (
-                        self.int_pts[1].wgt *
+                        self.int_pts[1].wgt[g] *
                         Xi_i @ c @ Xi_j.T
                     )
 
@@ -181,15 +200,27 @@ class SimoBeam(Element):
                         self.int_pts[1].Nrot[j,g]
                     )
                     K[6*i:6*(i+1), 6*j:6*(j+1)] += (
-                        self.int_pts[1].wgt * G
+                        self.int_pts[1].wgt[g] * G
                     )
 
-        return K
+        return self.prop.L / 2.0 * K 
 
-    def stiffness_residual(self) -> np.ndarray:
+    def stiffness_residual(self, x: np.ndarray) -> np.ndarray:
         dx = x @ self.int_pts[1].Ndis
         R = np.zeros(shape=(12))
-        return R
+        for g in range(self.int_pts[1].n_pts):
+            for i in range(self.n_nodes):
+                Xi_i = Xi_mat(
+                    dx[:,g],
+                    self.int_pts[1].dNdis[i,g],
+                    self.int_pts[1].Nrot[i,g],
+                    self.int_pts[1].dNrot[i,g]
+                )
+                R[6*i:6*(i+1)] += (
+                    Xi_i @ self.int_pts[1].f[:,g] *
+                    self.int_pts[1].wgt[g]
+                )
+        return self.prop.L / 2.0 * R
 
     def mass_matrix(self) -> np.ndarray:
         K = np.zeros(shape=(12,12))
@@ -207,6 +238,23 @@ class SimoBeam(Element):
         R = np.zeros(shape=(12))
         return R
 
+class MortarContact(Element):
+    def __init__(
+        self, 
+        nodes,
+        n_nodes_in_mesh: int,
+        mesh_dof_per_node: int
+    ):
+        # --------------------------------------------------------------
+        # nodes
+        super().__init__(
+            nodes,
+            [6],
+            n_nodes_in_mesh,
+            mesh_dof_per_node
+        )
+
+
 def Xi_mat(
     dx: np.ndarray,
     dNdis: float,
@@ -221,15 +269,16 @@ def Xi_mat(
     return Xi
 
 def assembly_matrix(
-    nodes: np.ndarray,
+    node: int,
     local_dof: np.ndarray,
-    n_nodes: int,
-    m_dof: int
+    n_nodes_in_mesh: int,
+    mesh_dof_per_node: int
 ) -> np.ndarray:
-    A = np.zeros((len(local_dof), n_nodes*m_dof), dtype=np.float)
-    for i in nodes:
-        A[
-            local_dof[0]: local_dof[-1] + 1,
-            (i*m_dof + local_dof[0]): (i*m_dof + local_dof[-1] + 1)
-        ] = np.identity(len(local_dof))
+    
+    N = mesh_dof_per_node * n_nodes_in_mesh
+    n = len(local_dof)
+    A = np.zeros(shape=(N,n))
+    for j in range(n):
+        A[node*mesh_dof_per_node+j,local_dof[j]] = 1
+
     return A
