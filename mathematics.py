@@ -107,7 +107,7 @@ def quat_to_rotmat(q):
     R = np.identity(3) + 2.0*qc[3]*S + 2.0*S2
     return R
 
-def hampr(ql: np.ndarray, qr: np.ndarray) -> np.ndarray:
+def hamp(ql: np.ndarray, qr: np.ndarray) -> np.ndarray:
     """
     Hamilton product between two quaternions.
     """
@@ -121,3 +121,41 @@ def hampr(ql: np.ndarray, qr: np.ndarray) -> np.ndarray:
     h[3] = (ql[3]*qr[3] - ql[0]*qr[0] +
             ql[1]*qr[1] - ql[2]*qr[2])
     return h
+
+def simo_dyn_linmap(Th: np.ndarray) -> np.ndarray:
+    Th_norm = np.linalg.norm(Th) / np.sqrt(2)
+    return (
+        np.identity(3) -
+        0.5 * Th +
+        (2 - Th_norm / np.tan(Th_norm / 2)) / (2 * Th_norm**2) * Th @ Th
+    )
+
+def conjugate_quat(q: np.ndarray) -> np.ndarray:
+    q[:3] = -1.0 * q[:3]
+    return q
+
+def inverse_quat(q: np.ndarray) -> np.ndarray:
+    n = np.linalg.norm(q) ** 2
+    i = conjugate_quat(q)
+    return i / n
+
+def rotate(q: np.ndarray, v: np.ndarray) -> np.ndarray:
+    """
+    Rotate a size (3) vector with quaternion
+    """
+    qv = np.zeros(shape=(4))
+    qv[:3] = v
+    qv[3] = 0.0
+    qinv = inverse_quat(q)
+    q1 = hamp(q, qv)
+    qp = hamp(q1, qinv)
+    return qp[:3]
+
+def rotate2(q: np.ndarray, m: np.ndarray) -> np.ndarray:
+    """
+    Rotate a size (3x3) matrix with quaternion
+    """
+    p = np.zeros_like(m)
+    for i in range(3):
+        p(:,i) = rotate(q, m(:,i))
+    return p
