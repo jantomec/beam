@@ -17,14 +17,15 @@ class Element:
         
         N = mesh_dof_per_node * n_nodes_in_mesh
         n = len(local_dof)
-        self.assemb = np.zeros(shape=(N,n))
-        for n in self.nodes:
-            self.assemb += assembly_matrix(
-                node=n,
+        self.assemb = np.zeros(shape=(N,n*self.n_nodes))
+        for i in range(self.n_nodes):
+            self.assemb[:,n*i:n*(i+1)] += assembly_matrix(
+                node=nodes[i],
                 local_dof=self.dof,
                 n_nodes_in_mesh=n_nodes_in_mesh,
                 mesh_dof_per_node=mesh_dof_per_node
             )
+
 
 class SimoBeam(Element):
     def __init__(
@@ -88,13 +89,29 @@ class SimoBeam(Element):
             )
         ]
 
+        # Interpolation derivatives need to be corrected for
+        #  isoparametric formulation. This is done, when the element
+        #  length is computed.
+
+        # --------------------------------------------------------------
+        # initial element length
+        dx = coordinates @ self.int_pts[1].dNdis
+        intg = np.zeros(shape=(3))
+        for i in range(len(intg)):
+            intg[i] = np.dot(dx[i], self.int_pts[1].wgt)
+        L = np.linalg.norm(intg)
+
+        for i in range(len(self.int_pts)):
+            self.int_pts[i].dNdis *= 2 / L
+            self.int_pts[i].dNrot *= 2 / L
+
         # --------------------------------------------------------------
         # initial rotation
         for i in range(len(self.int_pts)):
             self.int_pts[i].rot = np.zeros(
-                shape=(4,self.int_pts[i].n_pts)
+                shape=(3,4,self.int_pts[i].n_pts)
             )
-            dx = coordinates @ self.int_pts[i].Ndis
+            dx = coordinates @ self.int_pts[i].dNdis
             for g in range(self.int_pts[i].n_pts):
                 rotmat = np.zeros(shape=(3,3))
                 rotmat[:,0] = mt.normalized(dx[:,g])
@@ -104,7 +121,7 @@ class SimoBeam(Element):
                 rotmat[:,2] = np.cross(
                     rotmat[:,0], rotmat[:,1]
                 )
-                self.int_pts[i].rot[:,g] = mt.rotmat_to_quat(rotmat)
+                self.int_pts[i].rot[:,:,g] = mt.rotmat_to_quat(rotmat)
 
         # --------------------------------------------------------------
         # interpolate velocity, acceleration, load
@@ -115,14 +132,6 @@ class SimoBeam(Element):
             distributed_load,
             reps=(self.int_pts[1].n_pts,1)
         ).T
-
-        # --------------------------------------------------------------
-        # initial element length
-        # reduced int pts dx from before is reused here
-        intg = np.zeros(shape=(3))
-        for i in range(len(intg)):
-            intg[i] = np.dot(dx[i], self.int_pts[1].wgt)
-        L = np.linalg.norm(intg)
 
         # --------------------------------------------------------------
         # element properties
@@ -138,8 +147,107 @@ class SimoBeam(Element):
             shear_coefficient=shear_coefficient
         )
 
+    def update(self, x, th_iter, dt, beta, gamma, iter0 = False):
+        """
+        x : np.ndarray
+            rotational iterative updates
+        """
+        if iter0:
+            for g in range(self.int_pts[0].n_pts):
+                a_new = (
+                    (1 - 0.5/beta) * self.int_pts[0].a[:,g] -
+                    1/(dt*beta) * self.int_pts[0].w[:,g]
+                )
+                self.int_pts[0].w[:,g] += dt * (
+                    (1 - gamma) * self.int_pts[0].a[:,g] +
+                    gamma * a_new
+                )
+                self.int_pts[0].a[:,g] = a_new
+            for i in range(len(self.int_pts)):
+                self.int_pts[i].rot[0] = self.int_pts[i].rot[2]
+
+        else:
+            for i in range(len(self.int_pts)):
+                self.int_pts[i].rot[1] = self.int_pts[i].rot[2]
+            
+            th = th_iter @ self.int_pts[0].Nrot
+            for g in range(self.int_pts[0].n_pts):
+                qn_inv = mt.conjugate_quat(self.int_pts[0].rot[0,:,g])
+                q_inv = mt.conjugate_quat(self.int_pts[0].rot[2,:,g])
+                ar1 = mt.quat_to_rotvec(
+                    mt.hamp(self.int_pts[0].rot[2,:,g], qn_inv)
+                )
+                arm1 = mt.rotate(q_inv, ar1)
+                dq = mt.rotvec_to_quat(th[:,g])
+                self.int_pts[0].rot[2,:,g] = mt.hamp(
+                    dq, self.int_pts[0].rot[2,:,g]
+                )
+
+                ar2 = mt.quat_to_rotvec(
+                    mt.hamp(self.int_pts[0].rot[2,:,g], qn_inv)
+                )
+                q_inv = mt.conjugate_quat(
+                    self.int_pts[0].rot[2,:,g]
+                )
+                arm2 = mt.rotate(q_inv, ar2)
+
+                self.int_pts[0].w[:,g] += (
+                    gamma / (dt*beta) * (arm2 - arm1)
+                )
+                self.int_pts[0].a[:,g] += (
+                    1 / (dt**2*beta) * (arm2 - arm1)
+                )
+
+            E1 = np.array([1, 0, 0])
+            dx = x @ self.int_pts[1].dNdis
+            
+            th = th_iter @ self.int_pts[1].Nrot
+            dth = th_iter @ self.int_pts[1].dNrot
+            for g in range(self.int_pts[1].n_pts):
+                dq = mt.rotvec_to_quat(th[:,g])
+                self.int_pts[1].rot[2,:,g] = mt.hamp(
+                    dq, self.int_pts[1].rot[2,:,g]
+                )
+
+                thn = np.linalg.norm(th[:,g])
+                if thn == 0:
+                    self.int_pts[1].om[:,g] += dth[:,g]
+                else:
+                    self.int_pts[1].om[:,g] = (
+                        (1 - np.sin(thn) / thn) *
+                        np.dot(th[:,g], dth[:,g]) /
+                        thn ** 2 * th[:,g] +
+                        np.sin(thn) / thn * dth[:,g] +
+                        (1 - np.cos(thn)) / thn ** 2 *
+                        np.cross(th[:,g], dth[:,g]) +
+                        np.cos(thn) * self.int_pts[1].om[:,g] +
+                        (1 - np.cos(thn)) / thn ** 2 *
+                        np.dot(th[:,g], self.int_pts[1].om[:,g]) *
+                        th[:,g] + np.sin(thn) / thn * np.cross(
+                            th[:,g],
+                            self.int_pts[1].om[:,g]
+                        )
+                    )
+                Gamma = mt.rotate(
+                    mt.conjugate_quat(self.int_pts[1].rot[2,:,g]),
+                    dx[:,g]
+                ) - E1
+                kappa = mt.rotate(
+                    mt.conjugate_quat(self.int_pts[1].rot[2,:,g]),
+                    self.int_pts[1].om[:,g]
+                )
+                fn = self.prop.C[:3,:3] @ Gamma
+                fm = self.prop.C[3:,3:] @ kappa
+                self.int_pts[1].f[:3,g] = mt.rotate(
+                    self.int_pts[1].rot[2,:,g], fn
+                )
+                self.int_pts[1].f[3:,g] = mt.rotate(
+                    self.int_pts[1].rot[2,:,g], fm
+                )
+
+
     def stiffness_matrix(self, x: np.ndarray) -> np.ndarray:
-        dx = x @ self.int_pts[1].Ndis
+        dx = x @ self.int_pts[1].dNdis
         K = np.zeros(shape=(12, 12))
 
         # --------------------------------------------------------------
@@ -147,7 +255,7 @@ class SimoBeam(Element):
         for g in range(self.int_pts[1].n_pts):
             c = np.zeros(shape=(6,6))
             # $c = \Pi @ C @ \Pi^T = \Pi (\Pi @ C)^T$ because $C^T = C$
-            q = self.int_pts[1].rot[:,g]
+            q = self.int_pts[1].rot[2,:,g]
             c[:3,:3] = mt.rotate2(
                 q,
                 (mt.rotate2(q, self.prop.C[:3,:3])).T
@@ -206,7 +314,7 @@ class SimoBeam(Element):
         return self.prop.L / 2.0 * K 
 
     def stiffness_residual(self, x: np.ndarray) -> np.ndarray:
-        dx = x @ self.int_pts[1].Ndis
+        dx = x @ self.int_pts[1].dNdis
         R = np.zeros(shape=(12))
         for g in range(self.int_pts[1].n_pts):
             for i in range(self.n_nodes):
@@ -237,6 +345,7 @@ class SimoBeam(Element):
     def follower_residual(self) -> np.ndarray:
         R = np.zeros(shape=(12))
         return R
+
 
 class MortarContact(Element):
     def __init__(
