@@ -154,9 +154,19 @@ class SimoBeam(Element):
         """
         if iter0:
             for g in range(self.int_pts[0].n_pts):
+                # Appropriate updating of rotations is crucial
+                # qn_inv = mt.conjugate_quat(self.int_pts[0].rot[0,:,g])
+                # q_inv = mt.conjugate_quat(self.int_pts[0].rot[2,:,g])
+                # ar1 = mt.quat_to_rotvec(
+                #     mt.hamp(self.int_pts[0].rot[2,:,g], qn_inv)
+                # )
+                # arm1 = mt.rotate(q_inv, ar1)
+                # Accumulated rotation arm1 is always zero, except
+                #  when there is prescribed rotation.
                 a_new = (
                     (1 - 0.5/beta) * self.int_pts[0].a[:,g] -
                     1/(dt*beta) * self.int_pts[0].w[:,g]
+                    # + 1/(dt**2*beta) * arm1
                 )
                 self.int_pts[0].w[:,g] += dt * (
                     (1 - gamma) * self.int_pts[0].a[:,g] +
@@ -330,13 +340,97 @@ class SimoBeam(Element):
                 )
         return self.prop.L / 2.0 * R
 
-    def mass_matrix(self) -> np.ndarray:
+    def mass_matrix(self, dt, beta, gamma) -> np.ndarray:
         K = np.zeros(shape=(12,12))
-        return K
 
-    def mass_residual(self) -> np.ndarray:
+        for g in range(self.int_pts[0].n_pts):
+            for i in range(self.n_nodes):
+                for j in range(self.n_nodes):
+                    m11 = (
+                        np.identity(3) * 
+                        self.int_pts[0].Ndis[i,g] *
+                        self.int_pts[0].Ndis[j,g]
+                    )
+                    qn_inv = mt.conjugate_quat(
+                        self.int_pts[0].rot[0,:,g]
+                    )
+                    thg = mt.quat_to_rotvec(
+                        mt.hamp(
+                            self.int_pts[0].rot[2,:,g],
+                            qn_inv
+                        )
+                    )
+                    T = mt.simo_dyn_linmap(mt.skew(thg))
+                    Irhoa = self.prop.I @ self.int_pts[0].a
+                    wIrhow = np.cross(
+                        self.int_pts[0].w[:,g],
+                        self.prop.I @ self.int_pts[0].w[:,g]
+                    )
+                    IrhoawIrhow = Irhoa + wIrhow
+                    
+                    m22p1 = dt**2 * beta * mt.skew(
+                        mt.rotate(
+                            self.int_pts[0].rot[2,:,g],
+                            IrhoawIrhow
+                        )
+                    )
+
+                    Irhow = dt * gamma * mt.skew(
+                        self.prop.I @ self.int_pts[0].w[:,g]
+                    )
+                    WIrho = dt * gamma * mt.skew(
+                        self.int_pts[0].w[:,g]
+                    ) @ self.prop.I
+                    m22p2p = self.prop.I - Irhow + WIrho
+                    m22p2 = mt.rotate2(
+                        self.int_pts[0].rot[2,:,g], m22p2p
+                    )
+
+                    m22p3 = (
+                        mt.rotate2(qn_inv, T) * 
+                        self.int_pts[0].Nrot[i,g] *
+                        self.int_pts[0].Nrot[j,g]
+                    )
+                    
+                    m22 = (-m22p1 + m22p2) @ m22p3
+
+                    M = np.zeros(shape=(6,6))
+                    M[:3,:3] = m11
+                    M[3:,3:] = m22
+
+                    K[6*i:6*(i+1), 6*j:6*(j+1)] += (
+                        self.int_pts[1].wgt[g] * M
+                    )
+
+        return self.prop.L / 2.0 * K 
+
+    def mass_residual(
+        self, global_accelerations
+    ) -> np.ndarray:
         R = np.zeros(shape=(12))
-        return R
+        accint = global_accelerations @ self.int_pts[0].Ndis
+        for g in range(self.int_pts[0].n_pts):
+            for i in range(self.n_nodes):
+                f = np.zeros(shape=(6))
+                f[:3] = (
+                    self.prop.A * self.prop.rho *
+                    accint[:,g] *
+                    self.int_pts[0].Ndis[i,g]
+                )
+                f[3:] = (
+                    mt.rotate(
+                        self.int_pts[0].rot[2,:,g],
+                        (
+                            self.prop.I @ self.int_pts[0].a[:,g] + np.cross(
+                                self.int_pts[0].w[:,g],
+                                self.prop.I @ self.int_pts[0].w[:,g]
+                            )
+                        )
+                    ) *
+                    self.int_pts[0].Nrot[i,g]
+                )
+                R[6*i:6*(i+1)] += f * self.int_pts[1].wgt[g]
+        return self.prop.L / 2.0 * R
     
     def follower_matrix(self) -> np.ndarray:
         K = np.zeros(shape=(12,12))
