@@ -258,8 +258,8 @@ class SimoBeam(Element):
 
     def stiffness_matrix(self, x: np.ndarray) -> np.ndarray:
         dx = x @ self.int_pts[1].dNdis
-        K = np.zeros(shape=(12, 12))
-
+        K = np.zeros(shape=(6*self.n_nodes, 6*self.n_nodes))
+        
         # --------------------------------------------------------------
         # material part
         for g in range(self.int_pts[1].n_pts):
@@ -274,6 +274,7 @@ class SimoBeam(Element):
                 q,
                 (mt.rotate2(q, self.prop.C[3:,3:])).T
             )
+            
             for i in range(self.n_nodes):
                 Xi_i = Xi_mat(
                     dx[:,g],
@@ -325,7 +326,7 @@ class SimoBeam(Element):
 
     def stiffness_residual(self, x: np.ndarray) -> np.ndarray:
         dx = x @ self.int_pts[1].dNdis
-        R = np.zeros(shape=(12))
+        R = np.zeros(shape=(6*self.n_nodes))
         for g in range(self.int_pts[1].n_pts):
             for i in range(self.n_nodes):
                 Xi_i = Xi_mat(
@@ -341,7 +342,7 @@ class SimoBeam(Element):
         return self.prop.L / 2.0 * R
 
     def mass_matrix(self, dt, beta, gamma) -> np.ndarray:
-        K = np.zeros(shape=(12,12))
+        K = np.zeros(shape=(6*self.n_nodes,6*self.n_nodes))
 
         for g in range(self.int_pts[0].n_pts):
             for i in range(self.n_nodes):
@@ -361,7 +362,7 @@ class SimoBeam(Element):
                         )
                     )
                     T = mt.simo_dyn_linmap(mt.skew(thg))
-                    Irhoa = self.prop.I @ self.int_pts[0].a
+                    Irhoa = self.prop.I @ self.int_pts[0].a[:,g]
                     wIrhow = np.cross(
                         self.int_pts[0].w[:,g],
                         self.prop.I @ self.int_pts[0].w[:,g]
@@ -399,7 +400,7 @@ class SimoBeam(Element):
                     M[3:,3:] = m22
 
                     K[6*i:6*(i+1), 6*j:6*(j+1)] += (
-                        self.int_pts[1].wgt[g] * M
+                        self.int_pts[0].wgt[g] * M
                     )
 
         return self.prop.L / 2.0 * K 
@@ -407,13 +408,13 @@ class SimoBeam(Element):
     def mass_residual(
         self, global_accelerations
     ) -> np.ndarray:
-        R = np.zeros(shape=(12))
+        R = np.zeros(shape=(6*self.n_nodes))
         accint = global_accelerations @ self.int_pts[0].Ndis
         for g in range(self.int_pts[0].n_pts):
             for i in range(self.n_nodes):
                 f = np.zeros(shape=(6))
                 f[:3] = (
-                    self.prop.A * self.prop.rho *
+                    self.prop.Arho *
                     accint[:,g] *
                     self.int_pts[0].Ndis[i,g]
                 )
@@ -429,15 +430,15 @@ class SimoBeam(Element):
                     ) *
                     self.int_pts[0].Nrot[i,g]
                 )
-                R[6*i:6*(i+1)] += f * self.int_pts[1].wgt[g]
+                R[6*i:6*(i+1)] += f * self.int_pts[0].wgt[g]
         return self.prop.L / 2.0 * R
     
     def follower_matrix(self) -> np.ndarray:
-        K = np.zeros(shape=(12,12))
+        K = np.zeros(shape=(6*self.n_nodes,6*self.n_nodes))
         return K
     
     def follower_residual(self) -> np.ndarray:
-        R = np.zeros(shape=(12))
+        R = np.zeros(shape=(6*self.n_nodes))
         return R
 
 
