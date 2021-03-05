@@ -127,6 +127,8 @@ def hamp(ql: np.ndarray, qr: np.ndarray) -> np.ndarray:
 
 def simo_dyn_linmap(Th: np.ndarray) -> np.ndarray:
     Th_norm = np.linalg.norm(Th) / np.sqrt(2)
+    if Th_norm == 0:
+        return np.identity(3)
     return (
         np.identity(3) -
         0.5 * Th +
