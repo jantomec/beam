@@ -1,6 +1,5 @@
 import numpy as np
 import elements as el
-import newton_raphson as nr
 import matplotlib.pyplot as plt
 
 
@@ -51,16 +50,21 @@ def frame():
     history = []
 
     print("Numbering elements...")
+    def ele_nodes(ele_id, n_nodes_per_ele):
+        return np.array([
+            n_nodes_per_ele*ele_id+j for j in range(n_nodes_per_ele+1)
+        ], dtype=int)
+    
     elements = [
         None,
         None,
         [
             el.SimoBeam(
-                nodes=[2*i,2*i+1,2*i+2],
+                nodes=ele_nodes(i, 2),
                 n_nodes_in_mesh=n_nodes,
                 mesh_dof_per_node=n_dof,
                 ref_vec=np.array([-1,0,1]),
-                coordinates=global_coordinates[:,[2*i,2*i+1,2*i+2]],
+                coordinates=global_coordinates[:,ele_nodes(i, 2)],
                 area=1000.0,
                 elastic_modulus=1000.0,
                 shear_modulus=1000.0,
@@ -119,8 +123,13 @@ def frame():
     beta = 0.25
     gamma = 0.5
     def matrix_multipliers():
-        # c = (1.0, 0.0, 0.0)  # if static
-        c = (1.0, gamma/(time_step[1]*beta), 1/(time_step[1]**2*beta))  # if dynamic
+
+        # if static
+        # c = (1.0, 0.0, 0.0)
+
+        # if dynamic
+        c = (1.0, gamma/(time_step[1]*beta), 1/(time_step[1]**2*beta))
+        
         return c
     
     print("Start of time loop...")
@@ -158,7 +167,10 @@ def frame():
                     if type(elements[2][e]) == el.SimoBeam:
                         S = c[0] * elements[2][e].stiffness_matrix(
                             global_coordinates[:,elements[2][e].nodes] +
-                            global_displacements[2][:,elements[2][e].nodes]
+                            global_displacements[2][
+                                :,
+                                elements[2][e].nodes
+                            ]
                         )
                         if c[2] != 0:
                             S += c[2] * elements[2][e].mass_matrix(
@@ -176,7 +188,6 @@ def frame():
                 x = np.linalg.solve(tangent, x)
                 x = np.reshape(x, newshape=(n_dof,n_nodes), order='F')
                 
-
             # Update values.
             global_displacements[2] += x[:3]
             if i == 0:
@@ -190,8 +201,14 @@ def frame():
                 )
                 global_accelerations[2] = a_new
             else:
-                global_velocities[2] += gamma / (time_step[1] * beta) * x[:3]
-                global_accelerations[2] += 1 / (time_step[1]**2 * beta) * x[:3]
+                global_velocities[2] += (
+                    gamma / 
+                    (time_step[1] * beta) * x[:3]
+                )
+                global_accelerations[2] += (
+                    1 / 
+                    (time_step[1]**2 * beta) * x[:3]
+                )
             for e in range(len(elements[2])):
                 if type(elements[2][e]) == el.SimoBeam:
                     elements[2][e].update(
@@ -221,15 +238,25 @@ def frame():
                     )
                     if c[2] != 0:
                         R += elements[2][e].mass_residual(
-                            global_accelerations[2][:,elements[2][e].nodes]
+                            global_accelerations[2][
+                                :,
+                                elements[2][e].nodes
+                            ]
                         )
                     A = elements[2][e].assemb
-                    x -= np.reshape(A @ R, newshape=(n_dof, n_nodes), order='F')
+                    x -= np.reshape(
+                        A @ R,
+                        newshape=(n_dof, n_nodes),
+                        order='F'
+                    )
             
             # Residual convergence
             res_norm = np.linalg.norm(x[active_dof[1]])
             if conv_test == "RES" and res_norm <= tolerance:
-                print("\tTime step converged within", i+1, "iterations.\n")
+                print(
+                    "\tTime step converged within",
+                    i+1, "iterations.\n"
+                )
                 break
 
         else:
