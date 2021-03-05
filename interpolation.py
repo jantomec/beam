@@ -42,7 +42,7 @@ def _lagrange_poly_d_(
             mvals = np.ones(shape=(len(eval_pts))) 
             for m in range(degree+1):
                 if root != m and i != m:
-                    mvals += (eval_pts - roots[m]) / (roots[root] - roots[m])
+                    mvals *= (eval_pts - roots[m]) / (roots[root] - roots[m])
             vals += 1 / (roots[root] - roots[i]) * mvals
     return vals
 
