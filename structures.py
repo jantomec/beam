@@ -107,6 +107,7 @@ class BeamElementProperties:
         self.C[3,3] = self.G * self.It
         self.C[4,4] = self.E * self.I1
         self.C[5,5] = self.E * self.I2
+        self.Arho = area * density
         self.I = np.zeros(shape=(3,3))
         self.I[0,0] = self.rho * (self.I1 + self.I2)
         self.I[1,1] = self.rho * self.I1
