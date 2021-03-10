@@ -58,3 +58,41 @@ def lagrange_poly_d(
             eval_pts=eval_pts
         )
     return dN
+
+def _lagrange_poly_dd_(
+    root: int,
+    degree: int,
+    eval_pts: np.ndarray
+) -> np.ndarray:
+    roots = np.zeros(shape=(degree+1))
+    vals = np.zeros(shape=(len(eval_pts)))
+    for m in range(degree+1):
+        roots[m] = 2*m / degree - 1
+    for i in range(degree+1):
+        if i != root:
+            mvals = np.zeros(shape=(len(eval_pts)))
+            for m in range(degree+1):
+                if root != m and i != m:
+                    lvals = np.ones(shape=(len(eval_pts)))
+                    for l in range(degree+1):
+                        if root != l and i != l and m != l:
+                            lvals *= (
+                                (eval_pts - roots[l]) /
+                                (roots[root] - roots[l])
+                            )
+                    mvals += 1 / (roots[root] - roots[m]) * lvals
+            vals += mvals / (roots[root] - roots[i])
+    return vals
+
+def lagrange_poly_dd(
+    degree: int,
+    eval_pts: np.ndarray
+) -> np.ndarray:
+    ddN = np.zeros(shape=(degree+1, len(eval_pts)))
+    for j in range(degree+1):
+        ddN[j] = _lagrange_poly_dd_(
+            root=j,
+            degree=degree,
+            eval_pts=eval_pts
+        )
+    return ddN
