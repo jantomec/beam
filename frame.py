@@ -57,9 +57,9 @@ def frame():
     
     elements = [
         None,
-        None,
-        [
+        None, [
             el.SimoBeam(
+                index=i,
                 nodes=ele_nodes(i, 2),
                 n_nodes_in_mesh=n_nodes,
                 mesh_dof_per_node=n_dof,
