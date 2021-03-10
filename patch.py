@@ -1,6 +1,7 @@
 import numpy as np
 import elements as el
 import matplotlib.pyplot as plt
+import contact as ct
 
 
 def patch():
@@ -21,18 +22,19 @@ def patch():
 
     print("Constructing a matrix of coordinates...")
     # The number of nodes is not allowed to change during the simulation
-    N1 = 5
-    N2 = 6
-    global_coordinates = np.zeros(shape=(3,N1+N2))
-    global_coordinates[0,:N1] = np.linspace(0,1,num=N1)
-    global_coordinates[2,:N1] = 0.1
-    global_coordinates[0,N1:] = np.linspace(-0.1,1.1,num=N2)
+    
+    n_ele_1 = 6
+    ord_1 = 2
+    n_nod_1 = ord_1*n_ele_1+1
+    n_ele_2 = 8
+    ord_2 = 1
+    n_nod_2 = ord_2*n_ele_2+1
+    global_coordinates = np.zeros((3,n_nod_1+n_nod_2))
+    global_coordinates[0,:n_nod_1] = np.linspace(0,10,n_nod_1)
+    global_coordinates[2,:n_nod_1] = 1.0
+    global_coordinates[0,n_nod_1:n_nod_1+n_nod_2] = np.linspace(-1,11,n_nod_2)
     n_dim = global_coordinates.shape[0]
     n_nodes = global_coordinates.shape[1]
-    
-    # The number of dofs per node in mesh is not allowed to change
-    #  during the simulation. They can be, however, actived or
-    #  deactivated
     n_dof = 7
     
     print("Constructing a vector of unknowns...")
@@ -53,59 +55,46 @@ def patch():
             n_nodes_per_ele*ele_id+j for j in range(n_nodes_per_ele+1)
         ], dtype=int)
     
-    n_ele_1 = N1-1
-    n_ele_2 = N2-1
-    n_ele = n_ele_1 + n_ele_2
-
     elements = [
         None,
-        None,
-        [
+        None, [
             el.SimoBeam(
-                nodes=ele_nodes(i, 1),
+                index=i,
+                nodes=ele_nodes(i, ord_1),
                 n_nodes_in_mesh=n_nodes,
                 mesh_dof_per_node=n_dof,
                 ref_vec=np.array([0,0,1]),
-                coordinates=global_coordinates[:,ele_nodes(i, 1)],
+                coordinates=global_coordinates[:,ele_nodes(i, ord_1)],
                 area=1.0,
-                elastic_modulus=1.0,
+                elastic_modulus=10.0,
                 shear_modulus=1.0,
-                inertia_primary=2.0,
+                inertia_primary=1.0,
                 inertia_secondary=1.0,
-                inertia_torsion=1.0
+                inertia_torsion=1.0,
+                density=1
             ) for i in range(n_ele_1)
-        ] +
-        [
+        ] + [
             el.SimoBeam(
-                nodes=1+ele_nodes(i, 1),
+                index=i+n_ele_1,
+                nodes=ele_nodes(i, ord_2)+n_nod_1,
                 n_nodes_in_mesh=n_nodes,
                 mesh_dof_per_node=n_dof,
                 ref_vec=np.array([0,0,1]),
-                coordinates=global_coordinates[:,1+ele_nodes(i, 1)],
+                coordinates=global_coordinates[:,ele_nodes(i, ord_2)+n_nod_1],
                 area=1.0,
-                elastic_modulus=1.0,
+                elastic_modulus=10.0,
                 shear_modulus=1.0,
-                inertia_primary=2.0,
+                inertia_primary=1.0,
                 inertia_secondary=1.0,
-                inertia_torsion=1.0
-            ) for i in range(n_ele_1, n_ele)
+                inertia_torsion=1.0,
+                density=1
+            ) for i in range(n_ele_2)
         ]
     ]
-    
-    # Search individual entities
-    beams = []
-    beam = []
-    for i in range(n_ele-1):
-        if elements[2][i].nodes[-1] == elements[2][i+1].nodes[0]:
-            beam.append(i)
-        else:
-            beam.append(i)
-            beams.append(beam)
-            beam = []
-    beam.append(i+1)
-    beams.append(beam)
-    beam = None
-    print("Found", len(beams), "beams.")
+
+    print("Identifing individual entities...")
+    beams = ct.identify_entities(elements[2])
+    print(len(beams), "beams found.")
 
     print("Determining the active degrees of freedom...")
     # Variable doesn't change with Newton iterations, only with time 
@@ -115,14 +104,21 @@ def patch():
         np.ones((n_dof,n_nodes), dtype=np.bool)
     ]
     active_dof[1][6] = False
-    active_dof[1][:,N1//2] = False
-    active_dof[1][:,N1:] = False
+    active_dof[1][(0,1,2,3,5),0] = False
+    active_dof[1][(0,1,2,3,5),n_nod_1-1] = False
+    active_dof[1][(0,1,2,3,5),n_nod_1] = False
+    active_dof[1][(0,1,2,3,5),n_nod_1+n_nod_2-1] = False
     
     print("Add force and/or displacements loads...")
     def Qload(t):
         Q = np.zeros(shape=(6, n_nodes))
-        Q[4,0] = np.pi
-        Q[4,N1-1] = -np.pi
+        Qmax = 1.5
+        if t <= 15:
+            Q[4,n_nod_1-1] = -Qmax * t / 10
+            Q[4,0] = Qmax * t / 10
+        else:
+            Q[4,n_nod_1-1] = -Qmax
+            Q[4,0] = Qmax
         return Q
     Qfollow = lambda t : np.zeros_like(Qload)
     Uload = lambda t : np.zeros(shape=(6, n_nodes))
@@ -133,18 +129,17 @@ def patch():
     print("Initiating time...")
     # Variable doesn't change with Newton iterations, only with time 
     #  step.
-    time_step = [None, 1.]
+    time_step = [None, 1.0]
     time = [None, 0.]
-    final_time = 1.
+    final_time = 20.
     
     print("Selecting solver parameters...")
-    max_number_of_time_steps = 1 #  100
-    max_number_of_newton_iterations = 5
+    max_number_of_time_steps = 300 #  100
+    max_number_of_newton_iterations = 30
     tolerance = 1e-8
     conv_test = "RES"
     # conv_test = "DSP"
     # conv_test = "ENE"
-    SFR = 1.1
     
     print("We use Newmark-beta method.")
     beta = 0.25
@@ -152,13 +147,13 @@ def patch():
     def matrix_multipliers():
 
         # if static
-        c = (1.0, 0.0, 0.0)
+        # c = (1.0, 0.0, 0.0)
 
         # if dynamic
-        # c = (1.0, gamma/(time_step[1]*beta), 1/(time_step[1]**2*beta))
+        c = (1.0, gamma/(time_step[1]*beta), 1/(time_step[1]**2*beta))
         
         return c
-
+    
     print("Start of time loop...")
     for n in range(max_number_of_time_steps):
         print("Step", n)
@@ -171,62 +166,9 @@ def patch():
         c = matrix_multipliers()
         time[1] = time[0] + time_step[1]
 
-        ################################################################
-        # Contact search
-        contact_zones = []
-        for e1 in range(len(elements[2])):
-            A1 = global_coordinates[
-                :,elements[2][e1].nodes[0]
-            ] + global_displacements[2][
-                :,elements[2][e1].nodes[0]
-            ]
-            B1 = global_coordinates[
-                :,elements[2][e1].nodes[-1]
-            ] + global_displacements[2][
-                :,elements[2][e1].nodes[-1]
-            ]
-            C1 = (A1 + B1) / 2
-            # include all possible elements,
-            #  including self contact
-            search_contact_range = list(
-                range(e1+1, len(elements[2]))
-            )
-            # remove adjacent elements from the same beam
-            for beam in beams:
-                if e1 in beam:
-                    if e1+1 in beam:
-                        search_contact_range.remove(e1+1)
-                        
-            for e2 in search_contact_range:
-                A2 = global_coordinates[
-                    :,elements[2][e2].nodes[0]
-                ] + global_displacements[2][
-                    :,elements[2][e2].nodes[0]
-                ]
-                B2 = global_coordinates[
-                    :,elements[2][e2].nodes[-1]
-                ] + global_displacements[2][
-                    :,elements[2][e2].nodes[-1]
-                ]
-                C2 = (A2 + B2) / 2
-                d = np.linalg.norm(C2 - C1)
-                if d <= (
-                    elements[2][e1].prop.L/2 +
-                    elements[2][e2].prop.L/2
-                ) * SFR:
-                    print(
-                        "Proximity detected between elements", 
-                        e1, "and", e2, end=".\n"
-                    )
-
-        
-        ################################################################
         elements[0] = elements[2]
         global_displacements[0] = global_displacements[2]
-        history.append(
-            global_coordinates +
-            global_displacements[0]
-        )
+        history.append(global_coordinates+global_displacements[0].copy())
         global_velocities[0] = global_velocities[2]
         global_accelerations[0] = global_accelerations[2]
         active_dof[0] = active_dof[1]
@@ -243,7 +185,6 @@ def patch():
             global_accelerations[1] = global_accelerations[2]
 
             if i > 0:
-                # Assembly of tangent matrix from all elements.
                 for e in range(len(elements[2])):
                     if type(elements[2][e]) == el.SimoBeam:
                         S = c[0] * elements[2][e].stiffness_matrix(
@@ -268,7 +209,7 @@ def patch():
                 x[mask] = np.zeros(shape=(n_dof*n_nodes))[mask]
                 x = np.linalg.solve(tangent, x)
                 x = np.reshape(x, newshape=(n_dof,n_nodes), order='F')
-
+                
             # Update values.
             global_displacements[2] += x[:3]
             if i == 0:
@@ -347,10 +288,7 @@ def patch():
         
         if time[1] >= final_time:
             print("Computation is finished, reached the end of time.")
-            history.append(
-                global_coordinates +
-                global_displacements[2]
-            )
+            history.append(global_coordinates+global_displacements[0].copy())
             h = np.array(history)
             return h
 
@@ -359,11 +297,15 @@ def patch():
 
 def main():
     h = patch()
-    plt.plot(h[0,0,:5], h[0,2,:5], '.-')
-    plt.plot(h[0,0,5:], h[0,2,5:], '.-')
-    plt.xlim((-0.2,1.2))
-    plt.ylim((-0.5,0.5))
-    plt.show()
+    n_nod_1 = 13
+    if type(h) == np.ndarray:
+        for i in range(0,len(h),2):
+            plt.plot(h[i,0,:n_nod_1],h[i,2,:n_nod_1], '.-', label=i)
+            plt.plot(h[i,0,n_nod_1:],h[i,2,n_nod_1:], '.-')
+        plt.xlim((-2,13))
+        plt.ylim((-3,7))
+        plt.legend()
+        plt.show()
 
 if __name__ == "__main__":
     main()
