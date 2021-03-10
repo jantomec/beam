@@ -52,6 +52,8 @@ class BeamIntegrationPoint:
         self.n_pts = len(pointsLocation)
         self.loc = pointsLocation
         self.wgt = weights
+        self.rotation_interpolation = rotation_interpolation
+        self.displacement_interpolation = displacement_interpolation
         if displacement_interpolation == "Lagrange polynoms":
             self.Ndis = intp.lagrange_poly(
                 n_nodes - 1,
@@ -70,11 +72,11 @@ class BeamIntegrationPoint:
                 n_nodes - 1,
                 pointsLocation
             )
-        self.rot = None
-        self.om = None
-        self.w = None
-        self.a = None
-        self.q = None
+        self.rot = np.empty(shape=(4,self.n_pts))
+        self.om = np.empty(shape=(3,self.n_pts))
+        self.w = np.empty(shape=(3,self.n_pts))
+        self.a = np.empty(shape=(3,self.n_pts))
+        self.q = np.empty(shape=(3,self.n_pts))
         self.f = np.zeros(shape=(6,self.n_pts))
 
 
@@ -112,3 +114,71 @@ class BeamElementProperties:
         self.I[0,0] = self.rho * (self.I1 + self.I2)
         self.I[1,1] = self.rho * self.I1
         self.I[2,2] = self.rho * self.I2
+
+
+class MortarIntegrationPoint:
+    """
+    A class with all values, stored in integration points for a mortar
+    contact element.
+
+    ...
+
+    Attributes
+    ----------
+    n_pts : int
+        number of integration points
+    loc : np.ndarray, shape=(n_pts,)
+        locations of integration points on the interval [-1, 1]
+    wgt : np.ndarray, shape=(n_pts,)
+        integration weights
+    Nlag : np.ndarray, shape=(n_nodes, n_pts)
+        interpolation function matrix for lagrange dof
+    dNlag : np.ndarray, shape=(n_nodes, n_pts)
+        interpolation function derivative matrix for lagrange dof
+    Ndis : np.ndarray, shape=(n_nodes, n_pts)
+        interpolation function matrix for displacement dof
+    dNdis : np.ndarray, shape=(n_nodes, n_pts)
+        interpolation function derivative matrix for displacement dof
+    cmn : np.ndarray(dtype=int), shape=(1,n_pts)
+        closest mortar node
+    
+    Methods
+    -------
+    
+    """
+    def __init__(
+        self,
+        pointsLocation: np.ndarray,
+        weights: np.ndarray,
+        lagrange_interpolation: str,
+        displacement_interpolation: str,
+        n_nodes
+    ):
+        """
+
+        """
+        self.n_pts = len(pointsLocation)
+        self.loc = pointsLocation
+        self.wgt = weights
+        self.lagrange_interpolation = lagrange_interpolation
+        self.displacement_interpolation = displacement_interpolation
+        if lagrange_interpolation == "Lagrange polynoms":
+            self.Nlag = intp.lagrange_poly(
+                n_nodes - 1,
+                pointsLocation
+            )
+            self.dNlag = intp.lagrange_poly_d(
+                n_nodes - 1,
+                pointsLocation
+            )
+        if displacement_interpolation == "Lagrange polynoms":
+            self.Ndis = intp.lagrange_poly(
+                n_nodes - 1,
+                pointsLocation
+            )
+            self.dNdis = intp.lagrange_poly_d(
+                n_nodes - 1,
+                pointsLocation
+            )
+        self.cmn = np.empty(shape=(self.n_pts), dtype=np.int)
+        self.partner = []
