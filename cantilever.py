@@ -3,12 +3,11 @@ import elements as el
 import matplotlib.pyplot as plt
 
 
-def cantilever():
-    print("Hello, world!")
-    print("This is a FEM program for beam analysis.")
+def cantilever(printing=True):
+    if printing: print("Hello, world!\nThis is a FEM program for beam analysis.")
 
     # INITIALIZATION
-    print("Let's first load the initial state of the system.")
+    # Let's first load the initial state of the system."
     #print("Looking for a file named init.dat...")
     #print("Found it! Parsing data...")
 
@@ -19,7 +18,7 @@ def cantilever():
     #   variable[2] = new (converged or not) state
     # Except for time and time_step (which would always just repeat)
 
-    print("Constructing a matrix of coordinates...")
+    # Constructing a matrix of coordinates    
     # The number of nodes is not allowed to change during the simulation
     global_coordinates = np.zeros(shape=(3,6))
     global_coordinates[0] = np.linspace(0,1,num=6)
@@ -31,19 +30,18 @@ def cantilever():
     #  deactivated
     n_dof = 7
     
-    print("Constructing a vector of unknowns...")
+    # Constructing a vector of unknowns
     # vector of unknowns for the solver A.x = b
     x = np.zeros(shape=(n_dof,n_nodes))
     
-    print("Constructing matrices of displacements, " + 
-          "velocities and accelerations...")
+    # Constructing matrices of displacement, velocity and acceleration
     global_displacements = [None, None, np.zeros((n_dim,n_nodes))]
     global_velocities = [None, None, np.zeros((n_dim,n_nodes))]
     global_accelerations = [None, None, np.zeros((n_dim,n_nodes))]
 
     history = []
 
-    print("Numbering elements...")
+    # Numbering elements  
     def ele_nodes(ele_id, n_nodes_per_ele):
         return np.array([
             n_nodes_per_ele*ele_id+j for j in range(n_nodes_per_ele+1)
@@ -69,7 +67,7 @@ def cantilever():
         ]
     ]
 
-    print("Determining the active degrees of freedom...")
+    # Determining the active degrees of freedom  
     # Variable doesn't change with Newton iterations, only with time 
     #  step.
     active_dof = [
@@ -79,7 +77,7 @@ def cantilever():
     active_dof[1][6] = False
     active_dof[1][:,0] = False
     
-    print("Add force and/or displacements loads...")
+    # Add force and/or displacements loads    
     def Qload(t):
         Q = np.zeros(shape=(6, n_nodes))
         Q[4,-1] = 8*np.pi
@@ -87,17 +85,18 @@ def cantilever():
     Qfollow = lambda t : np.zeros_like(Qload)
     Uload = lambda t : np.zeros(shape=(6, n_nodes))
     
-    print("Note that additional nodal values can be added if necessary "
-          + "simply by creating new matrices.")
+    # Note that additional nodal values can be added if
+    #  necessary simply by creating new matrices.
 
-    print("Initiating time...")
+    if printing: print("Initiating time...")
+
     # Variable doesn't change with Newton iterations, only with time 
     #  step.
     time_step = [None, 1.]
     time = [None, 0.]
     final_time = 1.
     
-    print("Selecting solver parameters...")
+    # Selecting solver parameters    
     max_number_of_time_steps = 1 #  100
     max_number_of_newton_iterations = 5
     tolerance = 1e-8
@@ -105,7 +104,7 @@ def cantilever():
     # conv_test = "DSP"
     # conv_test = "ENE"
     
-    print("We use Newmark-beta method.")
+    if printing: print("We use Newmark-beta method.")
     beta = 0.25
     gamma = 0.5
     def matrix_multipliers():
@@ -118,10 +117,10 @@ def cantilever():
         
         return c
 
-    print("Start of time loop...")
+    if printing: print("Start of time loop...")
+
     for n in range(max_number_of_time_steps):
-        print("Step", n)
-        print("\tTime", time[1])
+        if printing: print("Step", n, "\n\tTime", time[1])
 
         time_step[0] = time_step[1]
         time[0] = time[1]
@@ -213,7 +212,7 @@ def cantilever():
             
             # Displacement convergence
             if conv_test == "DSP" and np.linalg.norm(x) <= tolerance:
-                print("Time step converged within", i+1, "iterations.")
+                if printing: print("Time step converged within", i+1, "iterations.")
                 break
             
             # External forces
@@ -243,27 +242,22 @@ def cantilever():
             # Residual convergence
             res_norm = np.linalg.norm(x[active_dof[1]])
             if conv_test == "RES" and res_norm <= tolerance:
-                print(
-                    "\tTime step converged within",
-                    i+1, "iterations.\n"
-                )
+                if printing: print("\tTime step converged within", i+1, "iterations.\n")
                 break
 
         else:
-            print("\nMaximum number of iterations reached without "
-                  + "convergence!")
+            if printing: print("\nMaximum number of iterations reached without convergence!")
             return
         
         if time[1] >= final_time:
-            print("Computation is finished, reached the end of time.")
+            if printing: print("Computation is finished, reached the end of time.")
             history.append(
-                global_coordinates +
-                global_displacements[2]
+                global_coordinates + global_displacements[2]
             )
             h = np.array(history)
             return h
 
-    print("Final time was never reached.")
+    if printing: print("Final time was never reached.")
     return
 
 def main():

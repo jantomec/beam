@@ -91,7 +91,8 @@ class BeamElementProperties:
         inertia_primary: float,
         inertia_secondary: float,
         inertia_torsion: float,
-        shear_coefficient: float
+        shear_coefficient: float,
+        contact_radius: float
     ):
         self.L = length
         self.A = area
@@ -102,6 +103,7 @@ class BeamElementProperties:
         self.I2 = inertia_secondary
         self.It = inertia_torsion
         self.ks = shear_coefficient
+        self.cr = contact_radius
         self.C = np.zeros(shape=(6,6))
         self.C[0,0] = self.E * self.A
         self.C[1,1] = self.G * self.A
@@ -182,3 +184,6 @@ class MortarIntegrationPoint:
             )
         self.cmn = np.empty(shape=(self.n_pts), dtype=np.int)
         self.partner = []
+        self.gap = []
+        self.mort_cont_loc = []
+        self.activated = []

@@ -14,3 +14,9 @@ def identify_entities(elements):
     beam.add(i+1)
     beams.append(beam)
     return beams
+
+def collect_nodes(elements):
+    nodes = set()
+    for e in elements:
+        nodes = nodes | set(e.nodes)
+    return np.array(list(nodes), dtype=np.int)

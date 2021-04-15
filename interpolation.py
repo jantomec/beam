@@ -96,3 +96,46 @@ def lagrange_poly_dd(
             eval_pts=eval_pts
         )
     return ddN
+
+def _lagrange_poly_d3_(
+    root: int,
+    degree: int,
+    eval_pts: np.ndarray
+) -> np.ndarray:
+    j = root
+    roots = np.zeros(shape=(degree+1))
+    vals = np.zeros(shape=(len(eval_pts)))
+    for m in range(degree+1):
+        roots[m] = 2*m / degree - 1
+    for i in range(degree+1):
+        if i != j:
+            lvals = np.zeros(shape=(len(eval_pts)))
+            for l in range(degree+1):
+                if l != j and l != i:
+                    nvals = np.zeros(shape=(len(eval_pts)))
+                    for n in range(degree+1):
+                        if n !=j and n!= i and n!= l:
+                            mvals = np.ones(shape=(len(eval_pts)))
+                            for m in range(degree+1):
+                                if m != j and m != i and m != l and m != n:
+                                    mvals *= (
+                                        (eval_pts - roots[m]) /
+                                        (roots[j] - roots[m])
+                                    )
+                            nvals += 1 / (roots[j] - roots[n]) * mvals
+                    lvals += 1 / (roots[j] - roots[l]) * nvals
+            vals += lvals / (roots[j] - roots[i])
+    return vals
+
+def lagrange_poly_d3(
+    degree: int,
+    eval_pts: np.ndarray
+) -> np.ndarray:
+    d3N = np.zeros(shape=(degree+1, len(eval_pts)))
+    for j in range(degree+1):
+        d3N[j] = _lagrange_poly_d3_(
+            root=j,
+            degree=degree,
+            eval_pts=eval_pts
+        )
+    return d3N

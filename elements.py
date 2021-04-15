@@ -1,11 +1,13 @@
 import numpy as np
 import structures as st
 import mathematics as mt
+import projection as npp
 
 
 class Element:
     def __init__(
         self,
+        index,
         nodes,
         local_dof,
         n_nodes_in_mesh,
@@ -14,6 +16,7 @@ class Element:
         self.nodes = np.array(nodes)
         self.n_nodes = len(self.nodes)
         self.dof = np.array(local_dof)
+        self.index = index
         
         N = mesh_dof_per_node * n_nodes_in_mesh
         n = len(local_dof)
@@ -29,7 +32,8 @@ class Element:
 
 class SimoBeam(Element):
     def __init__(
-        self, 
+        self,
+        index,
         nodes,
         n_nodes_in_mesh: int,
         mesh_dof_per_node: int,
@@ -45,11 +49,13 @@ class SimoBeam(Element):
         inertia_primary: float = 1.0,
         inertia_secondary: float = None,
         inertia_torsion: float = None,
-        shear_coefficient: float = 1
+        shear_coefficient: float = 1,
+        contact_radius: float = 1
     ):
         # --------------------------------------------------------------
         # nodes
         super().__init__(
+            index,
             nodes,
             [0,1,2,3,4,5],
             n_nodes_in_mesh,
@@ -144,8 +150,12 @@ class SimoBeam(Element):
             inertia_primary=inertia_primary,
             inertia_secondary=inertia_secondary,
             inertia_torsion=inertia_torsion,
-            shear_coefficient=shear_coefficient
+            shear_coefficient=shear_coefficient,
+            contact_radius=contact_radius
         )
+
+    def disp_shape_fun(int_points_locations):
+        return intp.lagrange_poly(self.n_nodes-1, int_points_locations)
 
     def update(self, x, th_iter, dt, beta, gamma, iter0 = False):
         """
@@ -444,20 +454,147 @@ class SimoBeam(Element):
 
 class MortarContact(Element):
     def __init__(
-        self, 
-        nodes,
-        n_nodes_in_mesh: int,
-        mesh_dof_per_node: int
+        self,
+        index: int,
+        parent_element: int,
+        mesh_dof_per_node: int,
+        nodal_locations_in_mesh: np.ndarray,
+        mortar_nodes: list,
+        mortar_elements: list
     ):
         # --------------------------------------------------------------
         # nodes
+        self.parent = parent_element
         super().__init__(
-            nodes,
+            index,
+            self.parent.nodes,
             [6],
-            n_nodes_in_mesh,
+            nodal_locations_in_mesh.shape[1],
             mesh_dof_per_node
         )
+        lgf = np.polynomial.legendre.leggauss(self.n_nodes)
+        self.int_pts = st.MortarIntegrationPoint(
+            pointsLocation=lgf[0],
+            weights=lgf[1],
+            lagrange_interpolation="Lagrange polynoms",
+            displacement_interpolation="Lagrange polynoms",
+            n_nodes=self.n_nodes
+        )
+        self.find_partners(
+            nodal_locations_in_mesh,
+            mortar_nodes,
+            mortar_elements
+        )
 
+    def closest_mortar_node(self, X, mortar_nodes):
+        x = X[:,self.nodes] @ self.int_pts.Ndis
+        for g in range(self.int_pts.n_pts):
+            d = np.empty(shape=(len(mortar_nodes)))
+            for i in range(len(mortar_nodes)):
+                d[i] = np.linalg.norm(x[:,g] - X[:,mortar_nodes[i]])
+            self.int_pts.cmn[g] = mortar_nodes[np.argmin(d)]
+
+    def closest_mortar_point(self, X, x, element):
+        return npp.nearest_point_projection(
+            self.int_pts.displacement_interpolation,
+            X[:,element.nodes], x
+        )
+    
+    def find_partners(self, X, mortar_nodes, mortar_elements):
+        self.closest_mortar_node(X, mortar_nodes)
+        self.int_pts.partner = []
+        self.int_pts.gap = []
+        self.int_pts.mort_cont_loc = []
+        self.int_pts.activated = np.zeros(self.int_pts.n_pts, dtype=np.bool)
+        x = X[:,self.nodes] @ self.int_pts.Ndis
+        for g in range(self.int_pts.n_pts):
+            # Find connected elements to node
+            ele = set()
+            for e in mortar_elements:
+                if self.int_pts.cmn[g] in e.nodes:
+                    ele.add(e)
+            u_all = []
+            ele = list(ele)
+            for e in ele:
+                u_all.append(self.closest_mortar_point(X, x[:,g], e))
+            gap = [np.linalg.norm(ui[1:]) for ui in u_all]
+            self.int_pts.partner.append(ele[np.argmin(gap)])
+            self.int_pts.gap.append(
+                np.min(gap) - 
+                self.int_pts.partner[g].prop.cr - 
+                self.parent.prop.cr
+            )
+            self.int_pts.mort_cont_loc.append(u_all[np.argmin(gap)][0])
+    
+    def update_gap(self, X):
+        x = X[:,self.nodes] @ self.int_pts.Ndis
+        for g in range(self.int_pts.n_pts):
+            u = self.closest_mortar_point(X, x[:,g], self.int_pts.partner[g])
+            self.int_pts.gap[g] = (np.linalg.norm(u[1:]) - 
+                                   self.int_pts.partner[g].prop.cr - 
+                                   self.parent.prop.cr)
+            self.int_pts.mort_cont_loc[g] = u[0]
+    
+    def non_penetration_condition_satisfied(self, p):
+        val = np.dot(
+            self.int_pts.wgt,
+            self.int_pts.Nlag[p]*self.int_pts.gap
+        )
+        return val >= 0
+
+    def kinetic_contact_condition(self, lagmul_nodal, p):
+        lagmul_int = lagmul_nodal @ self.int_pts.Nlag
+        val = np.dot(self.int_pts.wgt, self.int_pts.Ndis[p]*lagmul_int)
+        return val <= 0
+
+    def activated_nodes(self, lagmul_nodal, active_dof):
+        for p in range(self.n_nodes):
+            if active_dof[p]:
+                if self.kinetic_contact_condition(lagmul_nodal, p):
+                    continue
+                else:
+                    active_dof[p] = False
+            else:
+                if self.non_penetration_condition_satisfied(p):
+                    continue
+                else:
+                    active_dof[p] = True
+        return active_dof
+    
+    def contact_matrix(self, n_nodes_in_mesh, mesh_dof_per_node, x, lam):
+        Kg = np.zeros(shape=(mesh_dof_per_node*n_nodes_in_mesh, 
+                             mesh_dof_per_node*n_nodes_in_mesh))
+
+        x1_g = x[:,self.parent.nodes] @ self.parent.int_pts[0].Ndis
+        lam_g = lam @ self.int_pts[0].Ndis
+        for (i, I) in enumerate(self.parent.nodes):
+            for (j, J) in enumerate(self.int_pts.partner.nodes):
+                for (k, K) in enumerate(self.parent.nodes):
+                    for (l, L) in enumerate(self.int_pts.partner.nodes):
+                        CIK = np.zeros((7,7))
+                        CIL = np.zeros((7,7))
+                        CJK = np.zeros((7,7))
+                        CJL = np.zeros((7,7))
+
+                        C11 = sel
+
+                        Kg[mesh_dof_per_node*I:mesh_dof_per_node*(I+1),
+                           mesh_dof_per_node*K:mesh_dof_per_node*(K+1)] += (
+                            1
+                        )
+                        Kg[mesh_dof_per_node*I:mesh_dof_per_node*(I+1),
+                           mesh_dof_per_node*L:mesh_dof_per_node*(L+1)] += (
+                            1
+                        )
+                        Kg[mesh_dof_per_node*J:mesh_dof_per_node*(J+1),
+                           mesh_dof_per_node*K:mesh_dof_per_node*(K+1)] += (
+                            1
+                        )
+                        Kg[mesh_dof_per_node*J:mesh_dof_per_node*(J+1),
+                           mesh_dof_per_node*L:mesh_dof_per_node*(L+1)] += (
+                            1
+                        )                        
+        return K
 
 def Xi_mat(
     dx: np.ndarray,
@@ -465,7 +602,6 @@ def Xi_mat(
     Nrot: float,
     dNrot: float
 ) -> np.ndarray:
-    S = mt.skew(dx)
     Xi = np.identity(6)
     Xi[:3] *= dNdis
     Xi[3:] *= dNrot
@@ -483,6 +619,6 @@ def assembly_matrix(
     n = len(local_dof)
     A = np.zeros(shape=(N,n))
     for j in range(n):
-        A[node*mesh_dof_per_node+j,local_dof[j]] = 1
+        A[node*mesh_dof_per_node+j,j] = 1
 
     return A

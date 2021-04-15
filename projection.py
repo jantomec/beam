@@ -3,8 +3,10 @@ import interpolation as intp
 from scipy import optimize
 
 
-def _nearest_point_projection_(
-    interpolation: str,
+def nearest_point_projection(
+    N,
+    Nd,
+    Ndd,
     X: np.ndarray,
     P: np.ndarray,
     s0: float,
@@ -19,52 +21,51 @@ def _nearest_point_projection_(
     i = 0
     while np.linalg.norm(R) > TOLER and i < MAXITER:
         K = np.zeros((4,4))
-        if interpolation == "Lagrange polynoms":
-            R[:3] = P - (
-                (X @ intp.lagrange_poly(n_nodes-1, [u[0]])).flatten() +
-                u[1:]
-            )
-            R[3] = 0 - (
-                (X @ intp.lagrange_poly_d(n_nodes-1, [u[0]])).flatten()
-            ).dot(u[1:])
-            K[:3,0] = (
-                X @ intp.lagrange_poly_d(n_nodes-1, [u[0]])
-            ).flatten()
-            K[3,0] = (
-                (X @ intp.lagrange_poly_dd(n_nodes-1, [u[0]])).flatten()
-            ).dot(u[1:])
-            K[3,1:] = (
-                X @ intp.lagrange_poly_d(n_nodes-1, [u[0]])
-            ).flatten()
+        R[:3] = P - (
+            (X @ N(n_nodes-1, [u[0]])).flatten() +
+            u[1:]
+        )
+        R[3] = 0 - (
+            (X @ Nd(n_nodes-1, [u[0]])).flatten()
+        ).dot(u[1:])
+        K[:3,0] = (
+            X @ Nd(n_nodes-1, [u[0]])
+        ).flatten()
+        K[3,0] = (
+            (X @ Ndd(n_nodes-1, [u[0]])).flatten()
+        ).dot(u[1:])
+        K[3,1:] = (
+            X @ Nd(n_nodes-1, [u[0]])
+        ).flatten()
         K[:3,1:] = np.identity(3)
         u += np.linalg.solve(K, R)
         i+= 1
     return u
 
-def nearest_point_projection(
-    interpolation: str,
-    X: np.ndarray,
-    P: np.ndarray,
-    TOLER: float = 1e-8,
-    MAXITER: int = 10
-) -> np.ndarray:
+# def nearest_point_projection(
+#     interpolation: str,
+#     X: np.ndarray,
+#     P: np.ndarray,
+#     TOLER: float = 1e-8,
+#     MAXITER: int = 10
+# ) -> np.ndarray:
     
-    l = _nearest_point_projection_(
-        interpolation, X, P, -1, TOLER, MAXITER
-    )
-    r = _nearest_point_projection_(
-        interpolation, X, P, 1, TOLER, MAXITER
-    )
-    if not (-1 <= l[0] <= 1) and (-1 <= r[0] <= 1):
-            return r
-    elif not (-1 <= r[0] <= 1) and (-1 <= l[0] <= 1):
-            return l
-    else:
-        i = np.argmin((
-            np.linalg.norm(l[1:]),
-            np.linalg.norm(r[1:])
-        ))
-        return (l, r)[i]
+#     l = _nearest_point_projection_(
+#         interpolation, X, P, -1, TOLER, MAXITER
+#     )
+#     r = _nearest_point_projection_(
+#         interpolation, X, P, 1, TOLER, MAXITER
+#     )
+#     if not (-1 <= l[0] <= 1) and (-1 <= r[0] <= 1):
+#             return r
+#     elif not (-1 <= r[0] <= 1) and (-1 <= l[0] <= 1):
+#             return l
+#     else:
+#         i = np.argmin((
+#             np.linalg.norm(l[1:]),
+#             np.linalg.norm(r[1:])
+#         ))
+#         return (l, r)[i]
 
 def circular_point_projection(
     interpolation: str,
@@ -350,25 +351,17 @@ def spherical_point_projection_3(
         ddx2 = (X2 @ intp.lagrange_poly_dd(n_nodes_2-1, [s])).flatten()
         d = x1 - x2
         v = _triple(dx1, dx2, x1-x2)
-        dv = _triple(dx1, ddx2, x1-x2)
-
-        c1 = np.dot(d, d)
-        c2 = np.dot(dx1, d)
-        c3 = np.dot(dx2, d)
-        c4 = np.dot(ddx2, d)
-        c5 = np.dot(dx1, dx1)
-        c6 = np.dot(dx2, dx1)
-        c7 = np.dot(ddx2, dx1)
-        c8 = np.dot(dx2, dx2)
-        c9 = np.dot(ddx2, dx2)
-
-        return (
-            v * c1 * c3 * (c2 * c7 - c5 * c4)
-            + 1/2 * v * c1**2 * (c5 * c9 - c6 * c7)
-            - 1/2 * dv * c1**2 * (c5 * c8 - c6**2)
-            - 2 * c3 * (dv * c3 - v * c8 - v * c4) * (c1 * c5 - c2**2)
-            - c1 * (2 * dv * c3 - v * c8 - v * c4) * (c2 * c6 - c5 * c3)
+        R1_ = 1 / v * (
+            np.dot(dx2, d) * np.cross(d, dx1) +
+            0.5 * np.dot(d, d) * np.cross(dx1, dx2)
         )
+        dv = _triple(dx1, ddx2, d)
+        dR1_ = 1 / v * (
+            1/2 * np.dot(d,d) * np.cross(dx1,ddx2)
+            + (np.dot(ddx2,d) - np.dot(dx2,dx2) - dv / v * np.dot(dx2, d)) * np.cross(d, dx1)
+            - 1/2 * dv / v * np.dot(d,d) * np.cross(dx1,dx2)
+        )
+        return np.dot(dR1_, R1_)
 
     def fprime(s):
         x2 = (X2 @ intp.lagrange_poly(n_nodes_2-1, [s])).flatten()
@@ -376,46 +369,135 @@ def spherical_point_projection_3(
         ddx2 = (X2 @ intp.lagrange_poly_dd(n_nodes_2-1, [s])).flatten()
         d3x2 = (X2 @ intp.lagrange_poly_d3(n_nodes_2-1, [s])).flatten()
         d = x1 - x2
-        return (
-            np.dot(np.cross(dx1,ddx2)*np.dot(d,d)*np.dot(np.cross(dx1,dx2),d) - 
-            np.cross(dx1,dx2)*((-np.dot(d,dx2) + 
-            np.dot(dx2,d))*np.dot(np.cross(dx1,dx2),d) + 
-            np.dot(d,d)*(np.dot(np.cross(dx1,ddx2),d) +
-            np.dot(np.cross(dx1,dx2),dx2))) + 2*np.cross(dx1,d)*(-((np.dot(ddx2,d) +
-            np.dot(dx2,dx2))*np.dot(np.cross(dx1,dx2),d)) + 
-            np.dot(dx2,d)*(np.dot(np.cross(dx1,ddx2),d) +
-            np.dot(np.cross(dx1,dx2),dx2))),np.cross(dx1,ddx2)*np.dot(d,d) + 
-            2*np.cross(dx2,dx1)*np.dot(dx2,d) + np.cross(dx1,dx2)*(np.dot(d,dx2) + 
-            np.dot(dx2,d)) + 2*np.cross(d,dx1)*(np.dot(ddx2,d) + np.dot(dx2,dx2))) + 
-            np.dot(np.cross(dx1,d3x2)*np.dot(d,d)*np.dot(np.cross(dx1,dx2),d) + 
-            np.cross(dx1,ddx2)*(np.dot(d,dx2) + 
-            np.dot(dx2,d))*np.dot(np.cross(dx1,dx2),d) + 
-            2*np.cross(dx1,d)*(-((np.dot(d3x2,d) + 2*np.dot(ddx2,dx2) + 
-            np.dot(dx2,ddx2))*np.dot(np.cross(dx1,dx2),d)) + 
-            np.dot(dx2,d)*(np.dot(np.cross(dx1,d3x2),d) + 
-            2*np.dot(np.cross(dx1,ddx2),dx2) + np.dot(np.cross(dx1,dx2),ddx2))) + 
-            np.cross(dx1,ddx2)*np.dot(d,d)*(np.dot(np.cross(dx1,ddx2),d) + 
-            np.dot(np.cross(dx1,dx2),dx2)) - np.cross(dx1,ddx2)*((-np.dot(d,dx2) + 
-            np.dot(dx2,d))*np.dot(np.cross(dx1,dx2),d) + 
-            np.dot(d,d)*(np.dot(np.cross(dx1,ddx2),d) + 
-            np.dot(np.cross(dx1,dx2),dx2))) + 
-            2*np.cross(dx1,dx2)*(-((np.dot(ddx2,d) + 
-            np.dot(dx2,dx2))*np.dot(np.cross(dx1,dx2),d)) + 
-            np.dot(dx2,d)*(np.dot(np.cross(dx1,ddx2),d) + 
-            np.dot(np.cross(dx1,dx2),dx2))) - np.cross(dx1,dx2)*((-np.dot(d,ddx2) + 
-            np.dot(ddx2,d))*np.dot(np.cross(dx1,dx2),d) + 
-            np.dot(d,d)*(np.dot(np.cross(dx1,d3x2),d) + 
-            2*np.dot(np.cross(dx1,ddx2),dx2) + np.dot(np.cross(dx1,dx2),ddx2)) + 
-            (-np.dot(d,dx2) + np.dot(dx2,d))*(np.dot(np.cross(dx1,ddx2),d) + 
-            np.dot(np.cross(dx1,dx2),dx2)) + (np.dot(d,dx2) + 
-            np.dot(dx2,d))*(np.dot(np.cross(dx1,ddx2),d) + 
-            np.dot(np.cross(dx1,dx2),dx2))),np.cross(dx1,dx2)*np.dot(d,d) + 
-            2*np.cross(d,dx1)*np.dot(dx2,d))
+        v = _triple(dx1, dx2, x1-x2)
+        dv = _triple(dx1, ddx2, d)
+        ddv = _triple(dx1, d3x2, d)
+        R1_ = 1 / v * (
+            np.dot(dx2, d) * np.cross(d, dx1) +
+            0.5 * np.dot(d, d) * np.cross(dx1, dx2)
         )
-
-    sol = optimize.root_scalar(f, x0=-0.1, x1=0.1, method='secant')
-    s2 = sol.root
+        dR1_ = 1 / v * (
+            1/2 * np.dot(d,d) * np.cross(dx1,ddx2)
+            + (np.dot(ddx2,d) - np.dot(dx2,dx2) - dv / v * np.dot(dx2, d)) * np.cross(d, dx1)
+            - 1/2 * dv / v * np.dot(d,d) * np.cross(dx1,dx2)
+        )
+        ddR1_ = (
+            np.cross(dx1,dx2)*(
+                (-(ddv*v) + dv*(2*dv + v))*np.dot(d,d) + 
+                2*v**2*np.dot(d,ddx2) +
+                2*v**2*np.dot(dx2,dx2)
+            ) +
+            2*np.cross(d,dx1)*(
+                (-(ddv*v) + dv*(2*dv + v))*np.dot(d,dx2) + 
+                v*v*np.dot(d,d3x2) - 
+                2*v*dv*np.dot(d,ddx2) - 
+                3*v**2*np.dot(dx2,ddx2) + 
+                2*v*dv*np.dot(dx2,dx2)
+            ) + 
+            v**2*np.cross(dx1,d3x2)*np.dot(d,d) - 
+            2*v*np.cross(dx1,ddx2)*(dv*np.dot(d,d) + v*np.dot(d,dx2))
+        )/(2*v**3)
+        return np.dot(ddR1_, R1_) + np.dot(dR1_, dR1_)
+    # find optimal intial start
+    ninit = 20
+    s2 = np.linspace(-1, 1, ninit)
+    Rs2 = np.zeros_like(s2)
+    for i in range(len(s2)):
+        Rs2[i] = np.linalg.norm(R1(s2[i]))
+    i_min = np.argmin(Rs2)
+    try:
+        sol = optimize.newton(f, x0=s2[i_min], fprime=fprime, tol=1e-15)
+    except RuntimeError:
+        print(s2[i_min])
+        sol = 0    
+    s2 = sol
     x2 = (X2 @ intp.lagrange_poly(n_nodes_2-1, [s2])).flatten()
     R = R1(s2)
     return (s2, x2, R)
 
+def spherical_point_projection_test(
+    interpolation: str,
+    X1: np.ndarray,
+    X2: np.ndarray,
+    s1: float,
+    TOLER: float = 1e-8,
+    MAXITER: int = 20
+) -> np.ndarray:
+
+    n_nodes_1 = len(X1[0])
+    n_nodes_2 = len(X2[0])
+    x1 = (X1 @ intp.lagrange_poly(n_nodes_1-1, [s1])).flatten()
+    dx1 = (X1 @ intp.lagrange_poly_d(n_nodes_1-1, [s1])).flatten()
+
+    def R1(s):
+        x2 = (X2 @ intp.lagrange_poly(n_nodes_2-1, [s])).flatten()
+        dx2 = (X2 @ intp.lagrange_poly_d(n_nodes_2-1, [s])).flatten()
+        d = x1 - x2
+        v = _triple(dx1, dx2, x1-x2)
+        return 1 / v * (
+            np.dot(dx2, d) * np.cross(d, dx1)
+            + 0.5 * np.dot(d, d) * np.cross(dx1, dx2)
+        )
+    def f(s):
+        x2 = (X2 @ intp.lagrange_poly(n_nodes_2-1, [s])).flatten()
+        dx2 = (X2 @ intp.lagrange_poly_d(n_nodes_2-1, [s])).flatten()
+        ddx2 = (X2 @ intp.lagrange_poly_dd(n_nodes_2-1, [s])).flatten()
+        d = x1 - x2
+        v = _triple(dx1, dx2, x1-x2)
+        R1_ = 1 / v * (
+            np.dot(dx2, d) * np.cross(d, dx1) +
+            0.5 * np.dot(d, d) * np.cross(dx1, dx2)
+        )
+        dv = _triple(dx1, ddx2, d)
+        dR1_ = 1 / v * (
+            1/2 * np.dot(d,d) * np.cross(dx1,ddx2)
+            + (np.dot(ddx2,d) - np.dot(dx2,dx2) - dv / v * np.dot(dx2, d)) * np.cross(d, dx1)
+            - 1/2 * dv / v * np.dot(d,d) * np.cross(dx1,dx2)
+        )
+        return np.dot(dR1_, R1_)
+    
+    def fprime(s):
+        x2 = (X2 @ intp.lagrange_poly(n_nodes_2-1, [s])).flatten()
+        dx2 = (X2 @ intp.lagrange_poly_d(n_nodes_2-1, [s])).flatten()
+        ddx2 = (X2 @ intp.lagrange_poly_dd(n_nodes_2-1, [s])).flatten()
+        d3x2 = (X2 @ intp.lagrange_poly_d3(n_nodes_2-1, [s])).flatten()
+        d = x1 - x2
+        v = _triple(dx1, dx2, x1-x2)
+        dv = _triple(dx1, ddx2, d)
+        ddv = _triple(dx1, d3x2, d)
+        R1_ = 1 / v * (
+            np.dot(dx2, d) * np.cross(d, dx1) +
+            0.5 * np.dot(d, d) * np.cross(dx1, dx2)
+        )
+        dR1_ = 1 / v * (
+            1/2 * np.dot(d,d) * np.cross(dx1,ddx2)
+            + (np.dot(ddx2,d) - np.dot(dx2,dx2) - dv / v * np.dot(dx2, d)) * np.cross(d, dx1)
+            - 1/2 * dv / v * np.dot(d,d) * np.cross(dx1,dx2)
+        )
+        ddR1_ = (
+            np.cross(dx1,dx2)*(
+                (-(ddv*v) + dv*(2*dv + v))*np.dot(d,d) + 
+                2*v**2*np.dot(d,ddx2) +
+                2*v**2*np.dot(dx2,dx2)
+            ) +
+            2*np.cross(d,dx1)*(
+                (-(ddv*v) + dv*(2*dv + v))*np.dot(d,dx2) + 
+                v*v*np.dot(d,d3x2) - 
+                2*v*dv*np.dot(d,ddx2) - 
+                3*v**2*np.dot(dx2,ddx2) + 
+                2*v*dv*np.dot(dx2,dx2)
+            ) + 
+            v**2*np.cross(dx1,d3x2)*np.dot(d,d) - 
+            2*v*np.cross(dx1,ddx2)*(dv*np.dot(d,d) + v*np.dot(d,dx2))
+        )/(2*v**3)
+        return np.dot(ddR1_, R1_) + np.dot(dR1_, dR1_)
+
+    s2array = np.linspace(-1,1,200)
+    R1array = np.zeros_like(s2array)
+    dR1array = np.zeros_like(s2array)
+    ddR1array = np.zeros_like(s2array)
+    for i in range(s2array.shape[0]):
+        R1array[i] = np.linalg.norm(R1(s2array[i]))
+        dR1array[i] = f(s2array[i])
+        ddR1array[i] = fprime(s2array[i])
+    return (s2array, R1array, dR1array, ddR1array)
