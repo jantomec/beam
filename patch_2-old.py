@@ -1,7 +1,7 @@
 import numpy as np
 import elements as el
 import matplotlib.pyplot as plt
-import contact as ct
+import contact
 
 
 def patch():
@@ -100,22 +100,23 @@ def patch():
     ]
     for contact_pair in contact_pairs:
         mortar_side = [elements[2][i] for i in contact_pair[0]]
-        mornod = ct.collect_nodes(mortar_side)
+        mortar_nodes = contact.collect_nodes(mortar_side)
         mortar_contacts = []
         for i in contact_pair[1]: 
             mort = el.MortarContact(
                 index=i+n_ele_2,
                 parent_element=elements[2][i],
                 mesh_dof_per_node=n_dof,
-                nodal_locations_in_mesh=global_coordinates,
-                mortar_nodes=mornod,
-                mortar_elements=mortar_side
+                node_positions_in_mesh=global_coordinates,
+                mortar_nodes=mortar_nodes,
+                mortar_elements=mortar_side,
+                n_integration_points=ord_2*2
             )
             mortar_contacts.append(mort)
         elements[2] += mortar_contacts
 
     print("Identifing individual entities...")
-    beams = ct.identify_entities(elements[2])
+    beams = contact.identify_entities(elements[2])
     print(len(beams), "beams found.")
 
     print("Determining the active degrees of freedom...")
@@ -250,7 +251,6 @@ def patch():
                     tangent[:,mask] = np.identity(n_dof*n_nodes)[:,mask]
                     x = x.flatten('F')
                     x[mask] = np.zeros(shape=(n_dof*n_nodes))[mask]
-                    np.savetxt('tang.csv', tangent)
                     x = np.linalg.solve(tangent, x)
                     x = np.reshape(x, newshape=(n_dof,n_nodes), order='F')
                     
@@ -347,22 +347,25 @@ def patch():
             contact_set_changed = False
             
             # Partner mortar nodes
-            for contact_pair in contact_pairs:
-                mortar_side = [elements[2][i] for i in contact_pair[0]]
-                mornod = ct.collect_nodes(mortar_side)
-                for nmb in contact_pair[1]:
-                    for e in elements[2]:
-                        if type(e) == el.MortarContact:
-                            if e.parent.index == nmb:
-                                mort = e
-                    old_parent = mort.parent.index
-                    mort.find_partners(
-                        global_coordinates+global_displacements[2],
-                        mornod,
-                        mortar_side
-                    )
-                    if mort.parent.index != old_parent:
-                        active_nodes_changed = True
+            # for contact_pair in contact_pairs:
+            #     mortar_side = [elements[2][i] for i in contact_pair[0]]
+            #     mortar_nodes = contact.collect_nodes(mortar_side)
+            #     for nmb in contact_pair[1]:
+            #         for e in elements[2]:
+            #             if type(e) == el.MortarContact:
+            #                 if e.parent.index == nmb:
+            #                     mort = e
+            #         old_parent = mort.parent.index
+            #         mort.find_gap(
+            #             global_coordinates+global_displacements[2],
+            #             mortar_nodes,
+            #             mortar_side
+            #         )
+            #         if mort.parent.index != old_parent:
+            #             active_nodes_changed = True
+            for e in range(len(elements[2])):
+                if type(e) == el.MortarContact:
+                    continue
 
             # Non-mortar node activation
             for e in elements[2]:

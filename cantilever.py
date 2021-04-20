@@ -20,10 +20,10 @@ def cantilever(printing=True):
 
     # Constructing a matrix of coordinates    
     # The number of nodes is not allowed to change during the simulation
-    global_coordinates = np.zeros(shape=(3,6))
-    global_coordinates[0] = np.linspace(0,1,num=6)
-    n_dim = global_coordinates.shape[0]
-    n_nodes = global_coordinates.shape[1]
+    coordinates = np.zeros(shape=(3,6))
+    coordinates[0] = np.linspace(0,1,num=6)
+    n_dim = coordinates.shape[0]
+    n_nodes = coordinates.shape[1]
     
     # The number of dofs per node in mesh is not allowed to change
     #  during the simulation. They can be, however, actived or
@@ -35,9 +35,9 @@ def cantilever(printing=True):
     x = np.zeros(shape=(n_dof,n_nodes))
     
     # Constructing matrices of displacement, velocity and acceleration
-    global_displacements = [None, None, np.zeros((n_dim,n_nodes))]
-    global_velocities = [None, None, np.zeros((n_dim,n_nodes))]
-    global_accelerations = [None, None, np.zeros((n_dim,n_nodes))]
+    displacements = [None, None, np.zeros((n_dim,n_nodes))]
+    velocities = [None, None, np.zeros((n_dim,n_nodes))]
+    accelerations = [None, None, np.zeros((n_dim,n_nodes))]
 
     history = []
 
@@ -48,25 +48,21 @@ def cantilever(printing=True):
         ], dtype=int)
     
     elements = [
-        None,
-        None, [
-            el.SimoBeam(
-                index=i,
-                nodes=ele_nodes(i, 1),
-                n_nodes_in_mesh=n_nodes,
-                mesh_dof_per_node=n_dof,
-                ref_vec=np.array([0,0,1]),
-                coordinates=global_coordinates[:,ele_nodes(i, 1)],
-                area=1.0,
-                elastic_modulus=1.0,
-                shear_modulus=1.0,
-                inertia_primary=2.0,
-                inertia_secondary=1.0,
-                inertia_torsion=1.0
-            ) for i in range(5)
-        ]
+        el.SimoBeam(
+            nodes=ele_nodes(i, 1),
+            n_nodes_in_mesh=n_nodes,
+            mesh_dof_per_node=n_dof,
+            ref_vec=np.array([0,0,1]),
+            coordinates=coordinates[:,ele_nodes(i, 1)],
+            area=1.0,
+            elastic_modulus=1.0,
+            shear_modulus=1.0,
+            inertia_primary=2.0,
+            inertia_secondary=1.0,
+            inertia_torsion=1.0
+        ) for i in range(5)
     ]
-
+    
     # Determining the active degrees of freedom  
     # Variable doesn't change with Newton iterations, only with time 
     #  step.
@@ -129,14 +125,13 @@ def cantilever(printing=True):
         c = matrix_multipliers()
         time[1] = time[0] + time_step[1]
 
-        elements[0] = elements[2]
-        global_displacements[0] = global_displacements[2]
+        displacements[0] = displacements[2]
         history.append(
-            global_coordinates +
-            global_displacements[0]
+            coordinates +
+            displacements[0]
         )
-        global_velocities[0] = global_velocities[2]
-        global_accelerations[0] = global_accelerations[2]
+        velocities[0] = velocities[2]
+        accelerations[0] = accelerations[2]
         active_dof[0] = active_dof[1]
         
         # Apply displacement load
@@ -145,27 +140,26 @@ def cantilever(printing=True):
         for i in range(max_number_of_newton_iterations):
             tangent = np.zeros((n_dof*n_nodes, n_dof*n_nodes))
 
-            elements[1] = elements[2]
-            global_displacements[1] = global_displacements[2]
-            global_velocities[1] = global_velocities[2]
-            global_accelerations[1] = global_accelerations[2]
+            displacements[1] = displacements[2]
+            velocities[1] = velocities[2]
+            accelerations[1] = accelerations[2]
 
             if i > 0:
                 # Assembly of tangent matrix from all elements.
-                for e in range(len(elements[2])):
-                    if type(elements[2][e]) == el.SimoBeam:
-                        S = c[0] * elements[2][e].stiffness_matrix(
-                            global_coordinates[:,elements[2][e].nodes] +
-                            global_displacements[2][
+                for e in range(len(elements)):
+                    if type(elements[e]) == el.SimoBeam:
+                        S = c[0] * elements[e].stiffness_matrix(
+                            coordinates[:,elements[e].nodes] +
+                            displacements[2][
                                 :,
-                                elements[2][e].nodes
+                                elements[e].nodes
                             ]
                         )
                         if c[2] != 0:
-                            S += c[2] * elements[2][e].mass_matrix(
+                            S += c[2] * elements[e].mass_matrix(
                                 time_step[1], beta, gamma
                             )
-                        A = elements[2][e].assemb
+                        A = elements[e].assemb
                         tangent += A @ S @ A.T
                         
                 # Solve system of equations.
@@ -178,32 +172,32 @@ def cantilever(printing=True):
                 x = np.reshape(x, newshape=(n_dof,n_nodes), order='F')
 
             # Update values.
-            global_displacements[2] += x[:3]
+            displacements[2] += x[:3]
             if i == 0:
                 a_new = (
-                    (1 - 0.5/beta) * global_accelerations[2] -
-                    1/(time_step[1]*beta) * global_velocities[2]
+                    (1 - 0.5/beta) * accelerations[2] -
+                    1/(time_step[1]*beta) * velocities[2]
                 )
-                global_velocities[2] += time_step[1] * (
-                    (1 - gamma) * global_accelerations[2] +
+                velocities[2] += time_step[1] * (
+                    (1 - gamma) * accelerations[2] +
                     gamma * a_new
                 )
-                global_accelerations[2] = a_new
+                accelerations[2] = a_new
             else:
-                global_velocities[2] += (
+                velocities[2] += (
                     gamma / 
                     (time_step[1] * beta) * x[:3]
                 )
-                global_accelerations[2] += (
+                accelerations[2] += (
                     1 / 
                     (time_step[1]**2 * beta) * x[:3]
                 )
-            for e in range(len(elements[2])):
-                if type(elements[2][e]) == el.SimoBeam:
-                    elements[2][e].update(
-                        global_coordinates[:,elements[2][e].nodes] +
-                        global_displacements[2][:,elements[2][e].nodes],
-                        x[3:6,elements[2][e].nodes],
+            for e in range(len(elements)):
+                if type(elements[e]) == el.SimoBeam:
+                    elements[e].update(
+                        coordinates[:,elements[e].nodes] +
+                        displacements[2][:,elements[e].nodes],
+                        x[3:6,elements[e].nodes],
                         time_step[1],
                         beta,
                         gamma,
@@ -219,20 +213,20 @@ def cantilever(printing=True):
             x[:6] = Qload(time[1])
 
             # Internal forces
-            for e in range(len(elements[2])):
-                if type(elements[2][e]) == el.SimoBeam:
-                    R = c[0] * elements[2][e].stiffness_residual(
-                        global_coordinates[:,elements[2][e].nodes] +
-                        global_displacements[2][:,elements[2][e].nodes]
+            for e in range(len(elements)):
+                if type(elements[e]) == el.SimoBeam:
+                    R = c[0] * elements[e].stiffness_residual(
+                        coordinates[:,elements[e].nodes] +
+                        displacements[2][:,elements[e].nodes]
                     )
                     if c[2] != 0:
-                        R += elements[2][e].mass_residual(
-                            global_accelerations[2][
+                        R += elements[e].mass_residual(
+                            accelerations[2][
                                 :,
-                                elements[2][e].nodes
+                                elements[e].nodes
                             ]
                         )
-                    A = elements[2][e].assemb
+                    A = elements[e].assemb
                     x -= np.reshape(
                         A @ R,
                         newshape=(n_dof, n_nodes),
@@ -252,7 +246,7 @@ def cantilever(printing=True):
         if time[1] >= final_time:
             if printing: print("Computation is finished, reached the end of time.")
             history.append(
-                global_coordinates + global_displacements[2]
+                coordinates + displacements[2]
             )
             h = np.array(history)
             return h

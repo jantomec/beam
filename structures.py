@@ -3,83 +3,6 @@ from typing import Callable
 import interpolation as intp
 
 
-class BeamIntegrationPoint:
-    """
-    A class with all values, stored in integration points for a beam.
-
-    ...
-
-    Attributes
-    ----------
-    n_pts : int
-        number of integration points
-    loc : np.ndarray, shape=(n_pts,)
-        locations of integration points on the interval [-1, 1]
-    wgt : np.ndarray, shape=(n_pts,)
-        integration weights
-    Ndis : np.ndarray, shape=(n_nodes, n_pts)
-        interpolation function matrix for displacement dof
-    Nrot : np.ndarray, shape=(n_nodes, n_pts)
-        interpolation function matrix for rotation dof
-    rot : np.ndarray, shape=(4,n_pts)
-        quaternion orientation of the cross-section
-    om : np.ndarray, shape=(3,n_pts)
-        curvature vector
-    w : np.ndarray, shape=(3,n_pts)
-        angular velocity vector
-    a : np.ndarray, shape=(3,n_pts)
-        angular acceleration vector
-    q : np.ndarray, shape=(3,n_pts)
-        external distributed line load
-    f : np.ndarray, shape=(3,n_pts)
-        internal distributed forces
-    
-    Methods
-    -------
-    
-    """
-    def __init__(
-        self,
-        pointsLocation: np.ndarray,
-        weights: np.ndarray,
-        displacement_interpolation: str,
-        rotation_interpolation: str,
-        n_nodes
-    ):
-        """
-
-        """
-        self.n_pts = len(pointsLocation)
-        self.loc = pointsLocation
-        self.wgt = weights
-        self.rotation_interpolation = rotation_interpolation
-        self.displacement_interpolation = displacement_interpolation
-        if displacement_interpolation == "Lagrange polynoms":
-            self.Ndis = intp.lagrange_poly(
-                n_nodes - 1,
-                pointsLocation
-            )
-            self.dNdis = intp.lagrange_poly_d(
-                n_nodes - 1,
-                pointsLocation
-            )
-        if rotation_interpolation == "Lagrange polynoms":
-            self.Nrot = intp.lagrange_poly(
-                n_nodes - 1,
-                pointsLocation
-            )
-            self.dNrot = intp.lagrange_poly_d(
-                n_nodes - 1,
-                pointsLocation
-            )
-        self.rot = np.empty(shape=(4,self.n_pts))
-        self.om = np.empty(shape=(3,self.n_pts))
-        self.w = np.empty(shape=(3,self.n_pts))
-        self.a = np.empty(shape=(3,self.n_pts))
-        self.q = np.empty(shape=(3,self.n_pts))
-        self.f = np.zeros(shape=(6,self.n_pts))
-
-
 class BeamElementProperties:
     def __init__(
         self,
@@ -118,6 +41,67 @@ class BeamElementProperties:
         self.I[2,2] = self.rho * self.I2
 
 
+class BeamIntegrationPoint:
+    """
+    A class with all values, stored in integration points for a beam.
+
+    ...
+
+    Attributes
+    ----------
+    n_pts : int
+        number of integration points
+    loc : np.ndarray, shape=(n_pts,)
+        locations of integration points on the interval [-1, 1]
+    wgt : np.ndarray, shape=(n_pts,)
+        integration weights
+    Ndis : np.ndarray, shape=(n_nodes, n_pts)
+        interpolation function matrix for displacement dof
+    Nrot : np.ndarray, shape=(n_nodes, n_pts)
+        interpolation function matrix for rotation dof
+    rot : np.ndarray, shape=(4,n_pts)
+        quaternion orientation of the cross-section
+    om : np.ndarray, shape=(3,n_pts)
+        curvature vector
+    w : np.ndarray, shape=(3,n_pts)
+        angular velocity vector
+    a : np.ndarray, shape=(3,n_pts)
+        angular acceleration vector
+    q : np.ndarray, shape=(3,n_pts)
+        external distributed line load
+    f : np.ndarray, shape=(3,n_pts)
+        internal distributed forces
+    
+    Methods
+    -------
+    
+    """
+    def __init__(
+        self,
+        displacement_interpolation,
+        rotation_interpolation,
+        points_location: np.ndarray = None,
+        weights: np.ndarray = None
+    ):
+        self.n_pts = 0 if points_location is None else len(points_location)
+        self.loc = points_location
+        self.wgt = weights
+        
+        # pre-computed values for efficiency
+        if self.n_pts > 0:
+            self.Nd_mat = displacement_interpolation[0](self.loc)
+            self.dNd_mat = displacement_interpolation[1](self.loc)
+            self.Nr_mat = rotation_interpolation[0](self.loc)
+            self.dNr_mat = rotation_interpolation[1](self.loc)
+
+        self.rot = np.empty(shape=(3,4,self.n_pts))
+        self.om = np.empty(shape=(3,self.n_pts))
+        self.w = np.empty(shape=(3,self.n_pts))
+        self.a = np.empty(shape=(3,self.n_pts))
+        self.q = np.empty(shape=(3,self.n_pts))
+        self.f = np.zeros(shape=(6,self.n_pts))
+
+
 class MortarIntegrationPoint:
     """
     A class with all values, stored in integration points for a mortar
@@ -150,40 +134,8 @@ class MortarIntegrationPoint:
     """
     def __init__(
         self,
-        pointsLocation: np.ndarray,
-        weights: np.ndarray,
-        lagrange_interpolation: str,
-        displacement_interpolation: str,
-        n_nodes
+        point_location: np.ndarray = None,
+        weight: np.ndarray = None
     ):
-        """
-
-        """
-        self.n_pts = len(pointsLocation)
-        self.loc = pointsLocation
-        self.wgt = weights
-        self.lagrange_interpolation = lagrange_interpolation
-        self.displacement_interpolation = displacement_interpolation
-        if lagrange_interpolation == "Lagrange polynoms":
-            self.Nlag = intp.lagrange_poly(
-                n_nodes - 1,
-                pointsLocation
-            )
-            self.dNlag = intp.lagrange_poly_d(
-                n_nodes - 1,
-                pointsLocation
-            )
-        if displacement_interpolation == "Lagrange polynoms":
-            self.Ndis = intp.lagrange_poly(
-                n_nodes - 1,
-                pointsLocation
-            )
-            self.dNdis = intp.lagrange_poly_d(
-                n_nodes - 1,
-                pointsLocation
-            )
-        self.cmn = np.empty(shape=(self.n_pts), dtype=np.int)
-        self.partner = []
-        self.gap = []
-        self.mort_cont_loc = []
-        self.activated = []
+        self.loc = point_location
+        self.wgt = weight

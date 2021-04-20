@@ -20,15 +20,15 @@ def frame(t_end, printing=True):
 
     # Constructing a matrix of coordinates    
     # The number of nodes is not allowed to change during the simulation
-    global_coordinates = np.transpose(np.array([
+    coordinates = np.transpose(np.array([
         [0, 0, 0],
         [0, 0, 5],
         [0, 0, 10],
         [5, 0, 10],
         [10, 0, 10]
     ]))
-    n_dim = global_coordinates.shape[0]
-    n_nodes = global_coordinates.shape[1]
+    n_dim = coordinates.shape[0]
+    n_nodes = coordinates.shape[1]
     
     # The number of dofs per node in mesh is not allowed to change
     #  during the simulation. They can be, however, actived or
@@ -40,9 +40,9 @@ def frame(t_end, printing=True):
     x = np.zeros(shape=(n_dof,n_nodes))
     
     # Constructing matrices of displacement, velocity and acceleration
-    global_displacement = [None, None, np.zeros((n_dim,n_nodes))]
-    global_velocity = [None, None, np.zeros((n_dim,n_nodes))]
-    global_acceleration = [None, None, np.zeros((n_dim,n_nodes))]
+    displacement = [None, None, np.zeros((n_dim,n_nodes))]
+    velocity = [None, None, np.zeros((n_dim,n_nodes))]
+    acceleration = [None, None, np.zeros((n_dim,n_nodes))]
 
     history = []
 
@@ -53,29 +53,25 @@ def frame(t_end, printing=True):
         ], dtype=int)
     
     elements = [
-        None,
-        None, [
-            el.SimoBeam(
-                index=i,
-                nodes=ele_nodes(i, 2),
-                n_nodes_in_mesh=n_nodes,
-                mesh_dof_per_node=n_dof,
-                ref_vec=np.array([-1,0,1]),
-                coordinates=global_coordinates[:,ele_nodes(i, 2)],
-                area=1000.0,
-                elastic_modulus=1000.0,
-                shear_modulus=1000.0,
-                inertia_primary=1.0,
-                inertia_secondary=1.0,
-                inertia_torsion=1.0,
-                density=10
-            ) for i in range(2)
-        ]
+        el.SimoBeam(
+            nodes=ele_nodes(i, 2),
+            n_nodes_in_mesh=n_nodes,
+            mesh_dof_per_node=n_dof,
+            ref_vec=np.array([-1,0,1]),
+            coordinates=coordinates[:,ele_nodes(i, 2)],
+            area=1000.0,
+            elastic_modulus=1000.0,
+            shear_modulus=1000.0,
+            inertia_primary=1.0,
+            inertia_secondary=1.0,
+            inertia_torsion=1.0,
+            density=10
+        ) for i in range(2)
     ]
 
     # hard-code Arho for this specific example
-    for e in range(len(elements[2])):
-        elements[2][e].prop.Arho = 1.0
+    for e in range(len(elements)):
+        elements[e].prop.Arho = 1.0
 
     # Determining the active degrees of freedom    
     # Variable doesn't change with Newton iterations, only with time 
@@ -143,11 +139,10 @@ def frame(t_end, printing=True):
         c = matrix_multipliers()
         time[1] = time[0] + time_step[1]
 
-        elements[0] = elements[2]
-        global_displacement[0] = global_displacement[2]
-        history.append(global_displacement[0].copy())
-        global_velocity[0] = global_velocity[2]
-        global_acceleration[0] = global_acceleration[2]
+        displacement[0] = displacement[2]
+        history.append(displacement[0].copy())
+        velocity[0] = velocity[2]
+        acceleration[0] = acceleration[2]
         active_dof[0] = active_dof[1]
         
         # Apply displacement load
@@ -156,26 +151,25 @@ def frame(t_end, printing=True):
         for i in range(max_number_of_newton_iterations):
             tangent = np.zeros((n_dof*n_nodes, n_dof*n_nodes))
 
-            elements[1] = elements[2]
-            global_displacement[1] = global_displacement[2]
-            global_velocity[1] = global_velocity[2]
-            global_acceleration[1] = global_acceleration[2]
+            displacement[1] = displacement[2]
+            velocity[1] = velocity[2]
+            acceleration[1] = acceleration[2]
 
             if i > 0:
-                for e in range(len(elements[2])):
-                    if type(elements[2][e]) == el.SimoBeam:
-                        S = c[0] * elements[2][e].stiffness_matrix(
-                            global_coordinates[:,elements[2][e].nodes] +
-                            global_displacement[2][
+                for e in range(len(elements)):
+                    if type(elements[e]) == el.SimoBeam:
+                        S = c[0] * elements[e].stiffness_matrix(
+                            coordinates[:,elements[e].nodes] +
+                            displacement[2][
                                 :,
-                                elements[2][e].nodes
+                                elements[e].nodes
                             ]
                         )
                         if c[2] != 0:
-                            S += c[2] * elements[2][e].mass_matrix(
+                            S += c[2] * elements[e].mass_matrix(
                                 time_step[1], beta, gamma
                             )
-                        A = elements[2][e].assemb
+                        A = elements[e].assemb
                         tangent += A @ S @ A.T
                         
                 # Solve system of equations.
@@ -188,32 +182,32 @@ def frame(t_end, printing=True):
                 x = np.reshape(x, newshape=(n_dof,n_nodes), order='F')
                 
             # Update values.
-            global_displacement[2] += x[:3]
+            displacement[2] += x[:3]
             if i == 0:
                 a_new = (
-                    (1 - 0.5/beta) * global_acceleration[2] -
-                    1/(time_step[1]*beta) * global_velocity[2]
+                    (1 - 0.5/beta) * acceleration[2] -
+                    1/(time_step[1]*beta) * velocity[2]
                 )
-                global_velocity[2] += time_step[1] * (
-                    (1 - gamma) * global_acceleration[2] +
+                velocity[2] += time_step[1] * (
+                    (1 - gamma) * acceleration[2] +
                     gamma * a_new
                 )
-                global_acceleration[2] = a_new
+                acceleration[2] = a_new
             else:
-                global_velocity[2] += (
+                velocity[2] += (
                     gamma / 
                     (time_step[1] * beta) * x[:3]
                 )
-                global_acceleration[2] += (
+                acceleration[2] += (
                     1 / 
                     (time_step[1]**2 * beta) * x[:3]
                 )
-            for e in range(len(elements[2])):
-                if type(elements[2][e]) == el.SimoBeam:
-                    elements[2][e].update(
-                        global_coordinates[:,elements[2][e].nodes] +
-                        global_displacement[2][:,elements[2][e].nodes],
-                        x[3:6,elements[2][e].nodes],
+            for e in range(len(elements)):
+                if type(elements[e]) == el.SimoBeam:
+                    elements[e].update(
+                        coordinates[:,elements[e].nodes] +
+                        displacement[2][:,elements[e].nodes],
+                        x[3:6,elements[e].nodes],
                         time_step[1],
                         beta,
                         gamma,
@@ -229,20 +223,20 @@ def frame(t_end, printing=True):
             x[:6] = Qload(time[1])
 
             # Internal forces
-            for e in range(len(elements[2])):
-                if type(elements[2][e]) == el.SimoBeam:
-                    R = c[0] * elements[2][e].stiffness_residual(
-                        global_coordinates[:,elements[2][e].nodes] +
-                        global_displacement[2][:,elements[2][e].nodes]
+            for e in range(len(elements)):
+                if type(elements[e]) == el.SimoBeam:
+                    R = c[0] * elements[e].stiffness_residual(
+                        coordinates[:,elements[e].nodes] +
+                        displacement[2][:,elements[e].nodes]
                     )
                     if c[2] != 0:
-                        R += elements[2][e].mass_residual(
-                            global_acceleration[2][
+                        R += elements[e].mass_residual(
+                            acceleration[2][
                                 :,
-                                elements[2][e].nodes
+                                elements[e].nodes
                             ]
                         )
-                    A = elements[2][e].assemb
+                    A = elements[e].assemb
                     x -= np.reshape(
                         A @ R,
                         newshape=(n_dof, n_nodes),

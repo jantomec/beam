@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def _lagrange_poly_(
+def _lagrange_polynomial_(
     root: int,
     degree: int,
     eval_pts: np.ndarray
@@ -15,20 +15,20 @@ def _lagrange_poly_(
             vals *= (eval_pts - roots[m]) / (roots[root] - roots[m])
     return vals
 
-def lagrange_poly(
+def lagrange_polynomial(
     degree: int,
     eval_pts: np.ndarray
 ) -> np.ndarray:
     N = np.zeros(shape=(degree+1, len(eval_pts)))
     for j in range(degree+1):
-        N[j] = _lagrange_poly_(
+        N[j] = _lagrange_polynomial_(
             root=j,
             degree=degree,
             eval_pts=eval_pts
         )
     return N
 
-def _lagrange_poly_d_(
+def _lagrange_polynomial_derivative_(
     root: int,
     degree: int,
     eval_pts: np.ndarray
@@ -46,20 +46,20 @@ def _lagrange_poly_d_(
             vals += 1 / (roots[root] - roots[i]) * mvals
     return vals
 
-def lagrange_poly_d(
+def lagrange_polynomial_derivative(
     degree: int,
     eval_pts: np.ndarray
 ) -> np.ndarray:
     dN = np.zeros(shape=(degree+1, len(eval_pts)))
     for j in range(degree+1):
-        dN[j] = _lagrange_poly_d_(
+        dN[j] = _lagrange_polynomial_derivative_(
             root=j,
             degree=degree,
             eval_pts=eval_pts
         )
     return dN
 
-def _lagrange_poly_dd_(
+def _lagrange_polynomial_2_derivative_(
     root: int,
     degree: int,
     eval_pts: np.ndarray
@@ -84,20 +84,20 @@ def _lagrange_poly_dd_(
             vals += mvals / (roots[root] - roots[i])
     return vals
 
-def lagrange_poly_dd(
+def lagrange_polynomial_2_derivative(
     degree: int,
     eval_pts: np.ndarray
 ) -> np.ndarray:
     ddN = np.zeros(shape=(degree+1, len(eval_pts)))
     for j in range(degree+1):
-        ddN[j] = _lagrange_poly_dd_(
+        ddN[j] = _lagrange_polynomial_2_derivative_(
             root=j,
             degree=degree,
             eval_pts=eval_pts
         )
     return ddN
 
-def _lagrange_poly_d3_(
+def _lagrange_polynomial_3_derivative_(
     root: int,
     degree: int,
     eval_pts: np.ndarray
@@ -127,13 +127,13 @@ def _lagrange_poly_d3_(
             vals += lvals / (roots[j] - roots[i])
     return vals
 
-def lagrange_poly_d3(
+def lagrange_polynomial_3_derivative(
     degree: int,
     eval_pts: np.ndarray
 ) -> np.ndarray:
     d3N = np.zeros(shape=(degree+1, len(eval_pts)))
     for j in range(degree+1):
-        d3N[j] = _lagrange_poly_d3_(
+        d3N[j] = _lagrange_polynomial_3_derivative_(
             root=j,
             degree=degree,
             eval_pts=eval_pts

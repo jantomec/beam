@@ -13,9 +13,9 @@ class TestProjection(unittest.TestCase):
                       [1.5, 0.4, 1.0],
                       [1.2, 1.0, 1.7]]).T
         P = np.array([1.5, 0.0, 0.0])
-        interpolation_d0 = lambda n, x: intp.lagrange_poly(degree=n, eval_pts=x)
-        interpolation_d1 = lambda n, x: intp.lagrange_poly_d(degree=n, eval_pts=x)
-        interpolation_d2 = lambda n, x: intp.lagrange_poly_dd(degree=n, eval_pts=x)
+        interpolation_d0 = lambda x: intp.lagrange_polynomial(degree=X.shape[1]-1, eval_pts=x)
+        interpolation_d1 = lambda x: intp.lagrange_polynomial_derivative(degree=X.shape[1]-1, eval_pts=x)
+        interpolation_d2 = lambda x: intp.lagrange_polynomial_2_derivative(degree=X.shape[1]-1, eval_pts=x)
         u = proj.nearest_point_projection(
             interpolation_d0, interpolation_d1, interpolation_d2,
             X, P,
