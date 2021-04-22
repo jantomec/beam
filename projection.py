@@ -5,8 +5,8 @@ from scipy import optimize
 
 def nearest_point_projection(
     N,
-    Nd,
-    Ndd,
+    dN,
+    ddN,
     X: np.ndarray,
     P: np.ndarray,
     s0: float = 0.0,
@@ -24,11 +24,11 @@ def nearest_point_projection(
         R[:3] = P - (
             (X @ N([u[0]])).flatten() + u[1:]
         )
-        R[3] = 0 - ((X @ Nd([u[0]])).flatten()).dot(u[1:])
-        K[:3,0] = (X @ Nd([u[0]])).flatten()
-        K[3,0] = ((X @ Ndd([u[0]])).flatten()
+        R[3] = 0 - ((X @ dN([u[0]])).flatten()).dot(u[1:])
+        K[:3,0] = (X @ dN([u[0]])).flatten()
+        K[3,0] = ((X @ ddN([u[0]])).flatten()
         ).dot(u[1:])
-        K[3,1:] = (X @ Nd([u[0]])).flatten()
+        K[3,1:] = (X @ dN([u[0]])).flatten()
         K[:3,1:] = np.identity(3)
         u += np.linalg.solve(K, R)
         i+= 1

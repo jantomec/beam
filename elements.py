@@ -114,10 +114,10 @@ class SimoBeam(Element):
 
         # --------------------------------------------------------------
         # initial element length
-        dN = coordinates @ self.int_pts[1].dNd_mat
+        dxds = coordinates @ self.int_pts[1].dN_displacement
         intg = np.zeros(shape=(3))
         for i in range(len(intg)):
-            intg[i] = np.dot(dN[i], self.int_pts[1].wgt)
+            intg[i] = np.dot(dxds[i], self.int_pts[1].wgt)
         L = np.linalg.norm(intg)
         self.jacobian = L / 2
 
@@ -127,7 +127,7 @@ class SimoBeam(Element):
             self.int_pts[i].rot = np.zeros(
                 shape=(3,4,self.int_pts[i].n_pts)
             )
-            dx = 1/self.jacobian * coordinates @ self.int_pts[i].dNd_mat
+            dx = 1/self.jacobian * coordinates @ self.int_pts[i].dN_displacement
             for g in range(self.int_pts[i].n_pts):
                 rotmat = np.zeros(shape=(3,3))
                 rotmat[:,0] = math.normalized(dx[:,g])
@@ -141,8 +141,8 @@ class SimoBeam(Element):
 
         # --------------------------------------------------------------
         # interpolate velocity, acceleration, load
-        self.int_pts[0].w = angular_velocities @ self.int_pts[0].Nr_mat
-        self.int_pts[0].a = angular_accelerations @ self.int_pts[0].Nr_mat
+        self.int_pts[0].w = angular_velocities @ self.int_pts[0].N_rotation
+        self.int_pts[0].a = angular_accelerations @ self.int_pts[0].N_rotation
         self.int_pts[1].om = np.zeros(shape=(3,self.int_pts[1].n_pts))
         self.int_pts[1].q = np.tile(
             distributed_load,
@@ -200,7 +200,7 @@ class SimoBeam(Element):
             for i in range(len(self.int_pts)):
                 self.int_pts[i].rot[1] = self.int_pts[i].rot[2]
             
-            th = th_iter @ self.int_pts[0].Nr_mat
+            th = th_iter @ self.int_pts[0].N_rotation
             for g in range(self.int_pts[0].n_pts):
                 qn_inv = math.conjugate_quat(self.int_pts[0].rot[0,:,g])
                 q_inv = math.conjugate_quat(self.int_pts[0].rot[2,:,g])
@@ -229,10 +229,10 @@ class SimoBeam(Element):
                 )
 
             E1 = np.array([1, 0, 0])
-            dx = 1 / self.jacobian * x @ self.int_pts[1].dNd_mat
+            dx = 1 / self.jacobian * x @ self.int_pts[1].dN_displacement
             
-            th = th_iter @ self.int_pts[1].Nr_mat
-            dth = 1 / self.jacobian * th_iter @ self.int_pts[1].dNr_mat
+            th = th_iter @ self.int_pts[1].N_rotation
+            dth = 1 / self.jacobian * th_iter @ self.int_pts[1].dN_rotation
             for g in range(self.int_pts[1].n_pts):
                 dq = math.rotvec_to_quat(th[:,g])
                 self.int_pts[1].rot[2,:,g] = math.hamp(
@@ -277,7 +277,7 @@ class SimoBeam(Element):
 
 
     def stiffness_matrix(self, x: np.ndarray) -> np.ndarray:
-        dx = 1 / self.jacobian * x @ self.int_pts[1].dNd_mat
+        dx = 1 / self.jacobian * x @ self.int_pts[1].dN_displacement
         K = np.zeros(shape=(6*self.n_nodes, 6*self.n_nodes))
         
         # --------------------------------------------------------------
@@ -298,16 +298,16 @@ class SimoBeam(Element):
             for i in range(self.n_nodes):
                 Xi_i = Xi_mat(
                     dx[:,g],
-                    1 / self.jacobian * self.int_pts[1].dNd_mat[i,g],
-                    self.int_pts[1].Nr_mat[i,g],
-                    1 / self.jacobian * self.int_pts[1].dNr_mat[i,g]
+                    1 / self.jacobian * self.int_pts[1].dN_displacement[i,g],
+                    self.int_pts[1].N_rotation[i,g],
+                    1 / self.jacobian * self.int_pts[1].dN_rotation[i,g]
                 )
                 for j in range(self.n_nodes):
                     Xi_j = Xi_mat(
                         dx[:,g],
-                        1 / self.jacobian * self.int_pts[1].dNd_mat[j,g],
-                        self.int_pts[1].Nr_mat[j,g],
-                        1 / self.jacobian * self.int_pts[1].dNr_mat[j,g]
+                        1 / self.jacobian * self.int_pts[1].dN_displacement[j,g],
+                        self.int_pts[1].N_rotation[j,g],
+                        1 / self.jacobian * self.int_pts[1].dN_rotation[j,g]
                     )
                     K[6*i:6*(i+1), 6*j:6*(j+1)] += (
                         self.int_pts[1].wgt[g] *
@@ -322,21 +322,21 @@ class SimoBeam(Element):
                     G = np.zeros(shape=(6,6))
                     G[:3,3:] = (
                         -math.skew(self.int_pts[1].f[:3,g]) *
-                        1 / self.jacobian * self.int_pts[1].dNd_mat[i,g] *
-                        self.int_pts[1].Nr_mat[j,g]
+                        1 / self.jacobian * self.int_pts[1].dN_displacement[i,g] *
+                        self.int_pts[1].N_rotation[j,g]
                     )
                     G[3:,:3] = (
                         math.skew(self.int_pts[1].f[:3,g]) *
-                        1 / self.jacobian * self.int_pts[1].dNd_mat[j,g] *
-                        self.int_pts[1].Nr_mat[i,g]
+                        1 / self.jacobian * self.int_pts[1].dN_displacement[j,g] *
+                        self.int_pts[1].N_rotation[i,g]
                     )
                     G[3:,3:] = (
                         -math.skew(self.int_pts[1].f[3:,g]) *
-                        1 / self.jacobian * self.int_pts[1].dNr_mat[i,g] *
-                        self.int_pts[1].Nr_mat[j,g] +
+                        1 / self.jacobian * self.int_pts[1].dN_rotation[i,g] *
+                        self.int_pts[1].N_rotation[j,g] +
                         math.skew(dx[:,g]) @ math.skew(self.int_pts[1].f[:3,g]) *
-                        self.int_pts[1].Nr_mat[i,g] *
-                        self.int_pts[1].Nr_mat[j,g]
+                        self.int_pts[1].N_rotation[i,g] *
+                        self.int_pts[1].N_rotation[j,g]
                     )
                     K[6*i:6*(i+1), 6*j:6*(j+1)] += (
                         self.int_pts[1].wgt[g] * G
@@ -345,15 +345,15 @@ class SimoBeam(Element):
         return self.jacobian * K 
 
     def stiffness_residual(self, x: np.ndarray) -> np.ndarray:
-        dx = 1 / self.jacobian * x @ self.int_pts[1].dNd_mat
+        dx = 1 / self.jacobian * x @ self.int_pts[1].dN_displacement
         R = np.zeros(shape=(6*self.n_nodes))
         for g in range(self.int_pts[1].n_pts):
             for i in range(self.n_nodes):
                 Xi_i = Xi_mat(
                     dx[:,g],
-                    1 / self.jacobian * self.int_pts[1].dNd_mat[i,g],
-                    self.int_pts[1].Nr_mat[i,g],
-                    1 / self.jacobian * self.int_pts[1].dNr_mat[i,g]
+                    1 / self.jacobian * self.int_pts[1].dN_displacement[i,g],
+                    self.int_pts[1].N_rotation[i,g],
+                    1 / self.jacobian * self.int_pts[1].dN_rotation[i,g]
                 )
                 R[6*i:6*(i+1)] += (
                     Xi_i @ self.int_pts[1].f[:,g] *
@@ -369,8 +369,8 @@ class SimoBeam(Element):
                 for j in range(self.n_nodes):
                     m11 = (
                         np.identity(3) * 
-                        self.int_pts[0].Nd_mat[i,g] *
-                        self.int_pts[0].Nd_mat[j,g]
+                        self.int_pts[0].N_displacement[i,g] *
+                        self.int_pts[0].N_displacement[j,g]
                     )
                     qn_inv = math.conjugate_quat(
                         self.int_pts[0].rot[0,:,g]
@@ -409,8 +409,8 @@ class SimoBeam(Element):
 
                     m22p3 = (
                         math.rotate2(qn_inv, T) * 
-                        self.int_pts[0].Nr_mat[i,g] *
-                        self.int_pts[0].Nr_mat[j,g]
+                        self.int_pts[0].N_rotation[i,g] *
+                        self.int_pts[0].N_rotation[j,g]
                     )
                     
                     m22 = (-m22p1 + m22p2) @ m22p3
@@ -429,14 +429,14 @@ class SimoBeam(Element):
         self, global_accelerations
     ) -> np.ndarray:
         R = np.zeros(shape=(6*self.n_nodes))
-        accint = global_accelerations @ self.int_pts[0].Nd_mat
+        accint = global_accelerations @ self.int_pts[0].N_displacement
         for g in range(self.int_pts[0].n_pts):
             for i in range(self.n_nodes):
                 f = np.zeros(shape=(6))
                 f[:3] = (
                     self.prop.Arho *
                     accint[:,g] *
-                    self.int_pts[0].Nd_mat[i,g]
+                    self.int_pts[0].N_displacement[i,g]
                 )
                 f[3:] = (
                     math.rotate(
@@ -448,7 +448,7 @@ class SimoBeam(Element):
                             )
                         )
                     ) *
-                    self.int_pts[0].Nr_mat[i,g]
+                    self.int_pts[0].N_rotation[i,g]
                 )
                 R[6*i:6*(i+1)] += f * self.int_pts[0].wgt[g]
         return self.jacobian * R
@@ -485,33 +485,31 @@ class MortarContact(Element):
         ]
         
         lg = np.polynomial.legendre.leggauss(n_integration_points)
-        self.int_pts = [struct.MortarIntegrationPoint(
+        self.int_pts = [struct.IntegrationPoint(
             point_location=lg[0][g],
             weight=lg[1][g]
         ) for g in range(len(lg[0]))]
 
         # pre-computed values for efficiency
         if len(self.int_pts) > 0:
-            self.Nd_mat = self.parent.Ndis[0]([self.int_pts[g].loc for g in range(len(self.int_pts))])
-            self.dNd_mat = self.parent.Ndis[1]([self.int_pts[g].loc for g in range(len(self.int_pts))])
-            self.Nl_mat = self.Nlam[0]([self.int_pts[g].loc for g in range(len(self.int_pts))])
-            self.dNl_mat = self.Nlam[1]([self.int_pts[g].loc for g in range(len(self.int_pts))])
+            self.N_displacement = self.parent.Ndis[0]([self.int_pts[g].loc for g in range(len(self.int_pts))])
+            self.dN_displacement = self.parent.Ndis[1]([self.int_pts[g].loc for g in range(len(self.int_pts))])
+            self.N_lagrange = self.Nlam[0]([self.int_pts[g].loc for g in range(len(self.int_pts))])
+            self.dN_lagrange = self.Nlam[1]([self.int_pts[g].loc for g in range(len(self.int_pts))])
 
     def closest_mortar_node(self, X, mortar_nodes):
-        x = X[:,self.parent.nodes] @ self.Nd_mat
+        x = X[:,self.parent.nodes] @ self.N_displacement
         for g in range(len(self.int_pts)):
             d = np.empty(shape=(len(mortar_nodes)))
             for i in range(len(mortar_nodes)):
                 d[i] = np.linalg.norm(x[:,g] - X[:,mortar_nodes[i]])
             self.int_pts[g].cmn = mortar_nodes[np.argmin(d)]
 
-    def find_gap(self, X, mortar_nodes, mortar_elements):
+    def find_partner(self, X, mortar_nodes, mortar_elements):
         self.closest_mortar_node(X, mortar_nodes)
-        # self.int_pts[g].partner = [None for i in range(self.int_pts.n_pts)]
-        # self.int_pts[g].gap[:] = 0.0
         
         # integration point positions
-        x1 = X[:,self.parent.nodes] @ self.Nd_mat
+        x1 = X[:,self.parent.nodes] @ self.N_displacement
 
         for g in range(len(self.int_pts)):
             # Find connected elements to node
@@ -546,11 +544,22 @@ class MortarContact(Element):
             else:
                 selected = 0
             self.int_pts[g].partner = candidate_elements[selected]
-            r1 = self.parent.prop.cr
+
+    def find_gap(self, X):
+        x1 = X[:,self.parent.nodes] @ self.N_displacement
+        r1 = self.parent.prop.cr
+        for g in range(len(self.int_pts)):
+            partner = self.int_pts[g].partner
+            v = proj.nearest_point_projection(
+                partner.Ndis[0],
+                partner.Ndis[1],
+                partner.Ndis[2],
+                X[:,partner.nodes], x1[:,g]
+            )
             r2 = self.int_pts[g].partner.prop.cr
-            self.int_pts[g].gap = np.min(gaps) - r1 - r2
-            self.int_pts[g].s2 = distance_all[selected][0]
-            self.int_pts[g].n2 = math.normalized(distance_all[selected][1:])
+            self.int_pts[g].gap = np.linalg.norm(v[1:]) - r1 - r2
+            self.int_pts[g].s2 = v[0]
+            self.int_pts[g].n2 = math.normalized(v[1:])
         
     def gap_condition_contribution(self, p, X):
         # This function computes elements contribution to node p weak
@@ -562,13 +571,14 @@ class MortarContact(Element):
         find = np.where(self.parent.nodes == p)[0]
         if len(find) == 0: return 0.0
         l = find[0]
-
-        dx = 1 / self.parent.jacobian * X[:,self.parent.nodes] @ self.dNd_mat
-        jacobian = np.linalg.norm(dx, axis=0)
         val = 0
         for g in range(len(self.int_pts)):
-            val += self.int_pts[g].wgt * self.int_pts[g].gap * jacobian[g] * self.Nl_mat[l,g]
-        return val * self.parent.jacobian
+            dN1 = self.dN_displacement[:,g]
+            dx1 = X[:,self.parent.nodes] @ dN1
+            jacobian = np.linalg.norm(dx1)
+            Phi1 = self.N_lagrange[:,g]
+            val += Phi1[l] * self.int_pts[g].gap * jacobian * self.int_pts[g].wgt
+        return val
 
     def pressure_condition_contribution(self, p, X, Lam):
         # This function computes elements contribution to node p weak
@@ -580,66 +590,65 @@ class MortarContact(Element):
         find = np.where(self.parent.nodes == p)[0]
         if len(find) == 0: return 0.0
         l = find[0]
-        lam = Lam[p] * self.Nl_mat[l]
-        dx1 = 1 / self.parent.jacobian * X[:,self.parent.nodes] @ self.dNd_mat
-        jacobian = np.linalg.norm(dx1, axis=0)
-        
         val = 0
         for g in range(len(self.int_pts)):
+            Phi1 = self.N_lagrange[:,g]
+            lam = Lam[p] * Phi1[l]
+            dN1 = self.dN_displacement[:,g]
+            dx1 = X[:,self.parent.nodes] @ dN1
+            jacobian = np.linalg.norm(dx1)
             n2 = self.int_pts[g].n2
-            val += self.int_pts[g].wgt * lam[g] * jacobian[g] * self.Nd_mat[l,g]
-        return val * self.parent.jacobian
+            val += Phi1[l] * lam * jacobian * self.int_pts[g].wgt
+        return val
         
-    def contact_tangent(self, X, Lam, n_nodes_in_mesh, active_dof):
+    def contact_tangent(self, X, Lam, n_nodes_in_mesh):
         n_dof = len(self.dof)
-        Kg = np.zeros(shape=(n_dof*n_nodes_in_mesh, 
-                             n_dof*n_nodes_in_mesh))
-        x1 = X[:,self.parent.nodes] @ self.Nd_mat
-        dx1 = 1 / self.parent.jacobian * X[:,self.parent.nodes] @ self.dNd_mat
-        jacobian = np.linalg.norm(dx1, axis=0)
-        lam = Lam[self.parent.nodes] @ self.Nl_mat
-
+        Kg = np.zeros(shape=(n_dof*n_nodes_in_mesh, n_dof*n_nodes_in_mesh))
+        
         for g in range(len(self.int_pts)):
+            partner = self.int_pts[g].partner
             n2 = self.int_pts[g].n2
             s2 = self.int_pts[g].s2
             gN = self.int_pts[g].gap
-            v = (gN + self.parent.prop.cr + self.int_pts[g].partner.prop.cr) * n2
+            v = (gN + self.parent.prop.cr + partner.prop.cr) * n2
             v_abs = np.linalg.norm(v)
-            N1 = self.Nd_mat[:,g]
-            Phi1 = self.Nl_mat[:,g]
-            dN1 = self.dNd_mat[:,g]
-            N2 = self.int_pts[g].partner.Ndis[0]([s2])[:,0]
-            dN2 = self.int_pts[g].partner.Ndis[1]([s2])[:,0]
-            ddN2 = self.int_pts[g].partner.Ndis[2]([s2])[:,0]
-            dx2 = 1 / self.int_pts[g].partner.jacobian * X[:,self.int_pts[g].partner.nodes] @ dN2
-            ddx2 = 1 / self.int_pts[g].partner.jacobian**2 * X[:,self.int_pts[g].partner.nodes] @ ddN2
+            Phi1 = self.N_lagrange[:,g]
+            N1 = self.N_displacement[:,g]
+            dN1 = self.dN_displacement[:,g]
+            dx1 = X[:,self.parent.nodes] @ dN1
+            jacobian = np.linalg.norm(dx1)
+            lam = Lam[self.parent.nodes] @ Phi1
+            N2 = partner.Ndis[0]([s2])[:,0]
+            dN2 = partner.Ndis[1]([s2])[:,0]
+            ddN2 = partner.Ndis[2]([s2])[:,0]
+            dx2 = X[:,partner.nodes] @ dN2
+            ddx2 = X[:,partner.nodes] @ ddN2
             
             for (i, I) in enumerate(self.parent.nodes):
-                for (j, J) in enumerate(self.int_pts[g].partner.nodes):
+                for (j, J) in enumerate(partner.nodes):
                     for (k, K) in enumerate(self.parent.nodes):
-                        for (l, L) in enumerate(self.int_pts[g].partner.nodes):
+                        for (l, L) in enumerate(partner.nodes):
                             Cijkl = np.zeros((n_dof*2, n_dof*2))
                             Gijkl = np.zeros((n_dof*2, n_dof*2))
                             Jijkl = np.zeros((n_dof*2, n_dof*2))
                             
-                            C11 = lam[g] / jacobian[g] * (
-                                N1[i]*dN1[k] * np.outer(n2, dx1[:,g]) +
-                                N1[k]*dN1[i] * np.outer(dx1[:,g], n2)
+                            C11 = (
+                                lam / jacobian * np.outer(n2, dx1) * dN1[k] +
+                                lam / jacobian * np.outer(dx1, n2) * N1[k]
                             )
-                            C12 = (gN / jacobian[g] * dN1[i]*Phi1[k] * dx1[:,g] +
-                                jacobian[g]*N1[i]*Phi1[k] * n2)
-                            C21 = (gN / jacobian[g] * dN1[k]*Phi1[i] * dx1[:,g] +
-                                jacobian[g]*N1[k]*Phi1[i] * n2)
-                            C13 = -lam[g]/jacobian[g] * N2[l]*dN1[i] * np.outer(dx1[:,g], n2)
-                            C31 = -lam[g]/jacobian[g] * N2[j]*dN1[k] * np.outer(n2, dx1[:,g])
-                            C23 = -N2[l]*Phi1[i] * n2
-                            C32 = -N2[j]*Phi1[k] * n2
+                            C12 = (
+                                dN1[i] * gN / jacobian * dx1 * Phi1[k] +
+                                N1[i] * jacobian * n2 * Phi1[k]
+                            )
+                            C21 = (
+                                Phi1[i] * gN / jacobian * dx1 * dN1[k] +
+                                Phi1[i] * jacobian * n2 * N1[k]
+                            )
+                            C13 = -dN1[i] * lam / jacobian * np.outer(dx1, n2) * N2[l]
+                            C31 = -N2[j] * lam / jacobian * np.outer(n2, dx1) * dN1[k]
+                            C23 = -Phi1[i] * jacobian * n2 * N2[l]
+                            C32 = -N2[j] * jacobian * n2 * Phi1[k]
                             
-                            G1 = (math.skew(n2) @ math.skew(n2)) + (
-                                np.outer(dx2, dx2) / (dx2 @ dx2 - v @ ddx2)
-                            )
-                            G2 = np.outer(dx2, n2) / (dx2 @ dx2 - v @ ddx2)
-
                             Cijkl[:3,:3] = C11
                             Cijkl[:3,6] = C12
                             Cijkl[6,:3] = C21
@@ -648,63 +657,67 @@ class MortarContact(Element):
                             Cijkl[n_dof:n_dof+3,:3] = C31
                             Cijkl[n_dof:n_dof+3,6] = C32
 
-                            Gijkl[:3,:3] = -N1[i]*N1[k] / v_abs * G1
-                            Gijkl[:3,n_dof:n_dof+3] = N1[i]*N2[l] / v_abs * G1 - N1[i]*dN2[l] * G2
-                            Gijkl[n_dof:n_dof+3,:3] = N1[k]*N2[j] / v_abs * G1
-                            Gijkl[n_dof:n_dof+3,n_dof:n_dof+3] = -N2[j]*N2[l] / v_abs * G1 + N2[j]*dN2[l] * G2
-
-                            Jijkl[:3,:3] = dN1[i]*dN1[k] / jacobian[g] * (
-                                np.identity(3) - np.outer(dx1[:,g], dx1[:,g]) / jacobian[g]**2
-                            )
-
-                            col_dof = list(range(n_dof*I,n_dof*(I+1))) + list(range(n_dof*J,n_dof*(J+1)))
-                            row_dof = list(range(n_dof*K,n_dof*(K+1))) + list(range(n_dof*L,n_dof*(L+1)))
+                            S2c = (dx2 @ dx2 - v @ ddx2)
+                            G1 = 1 / v_abs * ((math.skew(n2) @ math.skew(n2)) + np.outer(dx2, dx2) / S2c)
+                            G2 = np.outer(dx2, n2) / S2c
+                            G3 = v_abs / S2c * np.outer(n2, n2)
                             
-                            Kg[np.ix_(col_dof, row_dof)] += (Cijkl + lam[g]*jacobian[g]*Gijkl + lam[g]*gN*Jijkl) * self.int_pts[g].wgt
-                                                        
-        return self.parent.jacobian * Kg
+                            Gijkl[:3,:3] = -N1[i] * G1 * N1[k]
+                            Gijkl[:3,n_dof:n_dof+3] = N1[i] * G1 * N2[l] - N1[i] * G2 * dN2[l]
+                            Gijkl[n_dof:n_dof+3,:3] = N2[j] * G1 * N1[k] - dN2[j] * G2.T * N1[k]
+                            Gijkl[n_dof:n_dof+3,n_dof:n_dof+3] = -N2[j] * G1 * N2[l] + N2[j] * G2 * dN2[l] + dN2[j] * G2.T * N2[l] - dN2[j] * G3 * dN2[l]
+                            
+                            Jijkl[:3,:3] = dN1[i] * (
+                                np.identity(3) - np.outer(dx1, dx1) / jacobian**2
+                            ) / jacobian * dN1[k]
 
-    def contact_residual(self, X, Lam, n_nodes_in_mesh, active_dof):
+                            row_dof = list(range(n_dof*I,n_dof*(I+1))) + list(range(n_dof*J,n_dof*(J+1)))
+                            col_dof = list(range(n_dof*K,n_dof*(K+1))) + list(range(n_dof*L,n_dof*(L+1)))
+                            
+                            Kg[np.ix_(col_dof, row_dof)] += (Cijkl + lam * jacobian * Gijkl + lam * gN * Jijkl) * self.int_pts[g].wgt
+        
+        return Kg
+
+    def contact_residual(self, X, Lam, n_nodes_in_mesh):
         n_dof = len(self.dof)
         R = np.zeros(shape=(n_dof*n_nodes_in_mesh))
-        lam = Lam[self.parent.nodes] @ self.Nl_mat
-        x1 = X[:,self.parent.nodes] @ self.Nd_mat
-        dx1 = 1 / self.parent.jacobian * X[:,self.parent.nodes] @ self.dNd_mat
-        jacobian = np.linalg.norm(dx1, axis=0)
-
+        
         for g in range(len(self.int_pts)):
+            partner = self.int_pts[g].partner
             n2 = self.int_pts[g].n2
             s2 = self.int_pts[g].s2
             gN = self.int_pts[g].gap
-            N1 = self.Nd_mat[:,g]
-            Phi1 = self.Nl_mat[:,g]
-            dN1 = self.dNd_mat[:,g]
-            N2 = self.int_pts[g].partner.Ndis[0]([s2])[:,0]
+            N1 = self.N_displacement[:,g]
+            dN1 = self.dN_displacement[:,g]
+            dx1 = X[:,self.parent.nodes] @ dN1
+            jacobian = np.linalg.norm(dx1)
+            Phi1 = self.N_lagrange[:,g]
+            lam = Lam[self.parent.nodes] @ Phi1
+            N2 = partner.Ndis[0]([s2])[:,0]
             for (i, I) in enumerate(self.parent.nodes):
-                for (j, J) in enumerate(self.int_pts[g].partner.nodes):
+                for (j, J) in enumerate(partner.nodes):
                     Rij = np.zeros(n_dof*2)
 
-                    # if active_dof[6,I]:
-                    Rij[:3] += lam[g]*jacobian[g]*N1[i]*n2 + lam[g]*gN / jacobian[g] * dN1[i] * dx1[:,g]
-                    Rij[6] += jacobian[g]*gN * Phi1[i]
-                    # if active_dof[6,J]:
-                    Rij[n_dof:n_dof+3] += -lam[g]*jacobian[g]*N2[j]*n2
+                    Rij[:3] = N1[i] * lam * jacobian * n2 + dN1[i] * lam * gN / jacobian * dx1
+                    Rij[6] = Phi1[i] * jacobian * gN
+                    Rij[n_dof:n_dof+3] = -N2[j] * lam * jacobian * n2
 
                     row_dof = list(range(n_dof*I,n_dof*(I+1))) + list(range(n_dof*J,n_dof*(J+1)))
 
                     R[row_dof] += Rij * self.int_pts[g].wgt
-        return self.parent.jacobian * R
+                    
+        return R
     
 def Xi_mat(
     dx: np.ndarray,
-    dNd_mat: float,
-    Nr_mat: float,
-    dNr_mat: float
+    dN_displacement: float,
+    N_rotation: float,
+    dN_rotation: float
 ) -> np.ndarray:
     Xi = np.identity(6)
-    Xi[:3] *= dNd_mat
-    Xi[3:] *= dNr_mat
-    Xi[3:,:3] = - Nr_mat * math.skew(dx)
+    Xi[:3] *= dN_displacement
+    Xi[3:] *= dN_rotation
+    Xi[3:,:3] = - N_rotation * math.skew(dx)
     return Xi
 
 def assembly_matrix(

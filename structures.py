@@ -89,10 +89,10 @@ class BeamIntegrationPoint:
         
         # pre-computed values for efficiency
         if self.n_pts > 0:
-            self.Nd_mat = displacement_interpolation[0](self.loc)
-            self.dNd_mat = displacement_interpolation[1](self.loc)
-            self.Nr_mat = rotation_interpolation[0](self.loc)
-            self.dNr_mat = rotation_interpolation[1](self.loc)
+            self.N_displacement = displacement_interpolation[0](self.loc)
+            self.dN_displacement = displacement_interpolation[1](self.loc)
+            self.N_rotation = rotation_interpolation[0](self.loc)
+            self.dN_rotation = rotation_interpolation[1](self.loc)
 
         self.rot = np.empty(shape=(3,4,self.n_pts))
         self.om = np.empty(shape=(3,self.n_pts))
@@ -102,10 +102,9 @@ class BeamIntegrationPoint:
         self.f = np.zeros(shape=(6,self.n_pts))
 
 
-class MortarIntegrationPoint:
+class IntegrationPoint:
     """
-    A class with all values, stored in integration points for a mortar
-    contact element.
+    A class with all values, stored in integration points for a finite element.
 
     ...
 
@@ -115,22 +114,7 @@ class MortarIntegrationPoint:
         number of integration points
     loc : np.ndarray, shape=(n_pts,)
         locations of integration points on the interval [-1, 1]
-    wgt : np.ndarray, shape=(n_pts,)
-        integration weights
-    Nlag : np.ndarray, shape=(n_nodes, n_pts)
-        interpolation function matrix for lagrange dof
-    dNlag : np.ndarray, shape=(n_nodes, n_pts)
-        interpolation function derivative matrix for lagrange dof
-    Ndis : np.ndarray, shape=(n_nodes, n_pts)
-        interpolation function matrix for displacement dof
-    dNdis : np.ndarray, shape=(n_nodes, n_pts)
-        interpolation function derivative matrix for displacement dof
-    cmn : np.ndarray(dtype=int), shape=(1,n_pts)
-        closest mortar node
-    
-    Methods
-    -------
-    
+        
     """
     def __init__(
         self,

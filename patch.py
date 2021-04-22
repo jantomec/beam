@@ -22,10 +22,10 @@ def patch(printing=True):
     # Constructing a matrix of coordinates
     # The number of nodes is not allowed to change during the simulation
     
-    n_ele_1 = 6
+    n_ele_1 = 4
     ord_1 = 1
     n_nod_1 = ord_1*n_ele_1+1
-    n_ele_2 = 6
+    n_ele_2 = 3
     ord_2 = 1
     n_nod_2 = ord_2*n_ele_2+1
     coordinates = np.zeros((3,n_nod_1+n_nod_2))
@@ -118,13 +118,9 @@ def patch(printing=True):
         if t <= 15:
             Q[4,0] = -Q0 * t
             Q[4,n_nod_1-1] = Q0 * t
-            Q[4,n_nod_1] = Q0 * t
-            Q[4,-1] = -Q0 * t
         else:
             Q[4,0] = -15*Q0
             Q[4,n_nod_1-1] = 15*Q0
-            Q[4,n_nod_1] = 15*Q0
-            Q[4,-1] = -15*Q0
         return Q
     Qfollow = lambda t : np.zeros_like(Qload)
     Uload = lambda t : np.zeros(shape=(6, n_nodes))
@@ -140,8 +136,8 @@ def patch(printing=True):
     
     # Select solver parameters
     max_number_of_time_steps = 300 #  100
-    max_number_of_newton_iterations = 200
-    max_number_of_contact_iterations = 100
+    max_number_of_newton_iterations = 260
+    max_number_of_contact_iterations = 10
     tolerance = 1e-8
     conv_test = "RES"
     # conv_test = "DSP"
@@ -182,7 +178,7 @@ def patch(printing=True):
         # Contact search
         active_nodes_changed = True
         for b1 in beam_1:
-            b1.child.find_gap(coordinates+displacement[2], mortar_nodes, mortar_elements)
+            b1.child.find_partner(coordinates+displacement[2], mortar_nodes, mortar_elements)
 
         contact_loop_counter = 0
         while active_nodes_changed:
@@ -223,7 +219,7 @@ def patch(printing=True):
                     # Contact contributions
                     for b1 in beam_1:
                         tangent += c[0] * b1.child.contact_tangent(
-                            coordinates+displacement[2], lagrange[2], n_nodes, active_dof[1]
+                            coordinates+displacement[2], lagrange[2], n_nodes
                         )
                         
                     # Follower load contributions
@@ -274,6 +270,7 @@ def patch(printing=True):
                 
                 # Update contact values
                 lagrange[2] += x[6]
+                
                 # ------------------------------------------------------
                 # Displacement convergence
                 if conv_test == "DSP" and np.linalg.norm(x) <= tolerance:
@@ -307,9 +304,9 @@ def patch(printing=True):
                 
                 # Contact forces
                 for b1 in beam_1:
-                    b1.child.find_gap(coordinates+displacement[2], mortar_nodes, mortar_elements)
+                    b1.child.find_gap(coordinates+displacement[2])
                     contact_forces = np.reshape(
-                        b1.child.contact_residual(coordinates+displacement[2], lagrange[2], n_nodes, active_dof[1]),
+                        b1.child.contact_residual(coordinates+displacement[2], lagrange[2], n_nodes),
                         newshape=(n_dof, n_nodes),
                         order='F'
                     )
@@ -318,7 +315,6 @@ def patch(printing=True):
                 # ------------------------------------------------------
                 # Residual convergence
                 res_norm = np.linalg.norm(x[active_dof[1]])
-                # print(res_norm)
                 if conv_test == "RES" and res_norm <= tolerance:
                     print(
                         "\tTime step converged within",
@@ -355,6 +351,7 @@ def patch(printing=True):
                     
                     if pressure_condition_for_node_p > 0:
                         active_dof[1][6,p] = False
+                        lagrange[2][p] = 0.0
             active_nodes_changed = not np.all(active_dof[0][6] == active_dof[1][6])
             if printing and active_nodes_changed: print("\tActive nodes have changed: repeat time step.\n")
             contact_loop_counter += 1
@@ -369,14 +366,21 @@ def patch(printing=True):
             print("Computation is finished, reached the end of time.")
             history.append(coordinates+displacement[0].copy())
             h = np.array(history)
-            return h
+            gap_function = []
+            for b1 in beam_1:
+                for g in range(len(b1.child.int_pts)):
+                    x = X[0,b1.nodes] @ b1.child.N_displacement[:,g]
+                    y = b1.child.int_pts[g].gap
+                    gap_function.append([x,y])
+            gap_function = np.array(gap_function)
+            return (h, gap_function)
 
     print("Final time was never reached.")
     return
 
 def main():
-    h = patch()
-    n_nod_1 = 7
+    (h, gap_function) = patch()
+    n_nod_1 = 5
     color_map = plt.get_cmap("tab10")
     c0 = color_map(0)
     c1 = color_map(1)
@@ -394,6 +398,7 @@ def main():
             plt.ylim((-3,7))
             plt.legend()
             plt.show()
-
+    plt.plot(gap_function[:,0], gap_function[:,1], 'o')
+    plt.show()
 if __name__ == "__main__":
     main()
