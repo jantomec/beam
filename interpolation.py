@@ -17,16 +17,26 @@ def _lagrange_polynomial_(
 
 def lagrange_polynomial(
     degree: int,
-    eval_pts: np.ndarray
+    eval_pts
 ) -> np.ndarray:
-    N = np.zeros(shape=(degree+1, len(eval_pts)))
-    for j in range(degree+1):
-        N[j] = _lagrange_polynomial_(
-            root=j,
-            degree=degree,
-            eval_pts=eval_pts
-        )
-    return N
+    try:
+        N = np.zeros(shape=(degree+1, len(eval_pts)))
+        for j in range(degree+1):
+            N[j] = _lagrange_polynomial_(
+                root=j,
+                degree=degree,
+                eval_pts=eval_pts
+            )
+        return N
+    except TypeError:
+        N = np.zeros(shape=(degree+1))
+        for j in range(degree+1):
+            N[j] = _lagrange_polynomial_(
+                root=j,
+                degree=degree,
+                eval_pts=[eval_pts]
+            )[0]
+        return N
 
 def _lagrange_polynomial_derivative_(
     root: int,
@@ -39,7 +49,7 @@ def _lagrange_polynomial_derivative_(
         roots[m] = 2*m / degree - 1
     for i in range(degree+1):
         if i != root:
-            mvals = np.ones(shape=(len(eval_pts))) 
+            mvals = np.ones(len(eval_pts))
             for m in range(degree+1):
                 if root != m and i != m:
                     mvals *= (eval_pts - roots[m]) / (roots[root] - roots[m])
@@ -48,16 +58,26 @@ def _lagrange_polynomial_derivative_(
 
 def lagrange_polynomial_derivative(
     degree: int,
-    eval_pts: np.ndarray
+    eval_pts
 ) -> np.ndarray:
-    dN = np.zeros(shape=(degree+1, len(eval_pts)))
-    for j in range(degree+1):
-        dN[j] = _lagrange_polynomial_derivative_(
-            root=j,
-            degree=degree,
-            eval_pts=eval_pts
-        )
-    return dN
+    try:
+        dN = np.zeros(shape=(degree+1, len(eval_pts)))
+        for j in range(degree+1):
+            dN[j] = _lagrange_polynomial_derivative_(
+                root=j,
+                degree=degree,
+                eval_pts=eval_pts
+            )
+        return dN
+    except TypeError:
+        dN = np.zeros(degree+1)
+        for j in range(degree+1):
+            dN[j] = _lagrange_polynomial_derivative_(
+                root=j,
+                degree=degree,
+                eval_pts=[eval_pts]
+            )[0]
+        return dN
 
 def _lagrange_polynomial_2_derivative_(
     root: int,
@@ -86,16 +106,26 @@ def _lagrange_polynomial_2_derivative_(
 
 def lagrange_polynomial_2_derivative(
     degree: int,
-    eval_pts: np.ndarray
+    eval_pts
 ) -> np.ndarray:
-    ddN = np.zeros(shape=(degree+1, len(eval_pts)))
-    for j in range(degree+1):
-        ddN[j] = _lagrange_polynomial_2_derivative_(
-            root=j,
-            degree=degree,
-            eval_pts=eval_pts
-        )
-    return ddN
+    try:
+        ddN = np.zeros(shape=(degree+1, len(eval_pts)))
+        for j in range(degree+1):
+            ddN[j] = _lagrange_polynomial_2_derivative_(
+                root=j,
+                degree=degree,
+                eval_pts=eval_pts
+            )
+        return ddN
+    except TypeError:
+        ddN = np.zeros(degree+1)
+        for j in range(degree+1):
+            ddN[j] = _lagrange_polynomial_2_derivative_(
+                root=j,
+                degree=degree,
+                eval_pts=[eval_pts]
+            )[0]
+        return ddN
 
 def _lagrange_polynomial_3_derivative_(
     root: int,
@@ -131,11 +161,21 @@ def lagrange_polynomial_3_derivative(
     degree: int,
     eval_pts: np.ndarray
 ) -> np.ndarray:
-    d3N = np.zeros(shape=(degree+1, len(eval_pts)))
-    for j in range(degree+1):
-        d3N[j] = _lagrange_polynomial_3_derivative_(
-            root=j,
-            degree=degree,
-            eval_pts=eval_pts
-        )
-    return d3N
+    try:
+        d3N = np.zeros(shape=(degree+1, len(eval_pts)))
+        for j in range(degree+1):
+            d3N[j] = _lagrange_polynomial_3_derivative_(
+                root=j,
+                degree=degree,
+                eval_pts=eval_pts
+            )
+        return d3N
+    except TypeError:
+        d3N = np.zeros(degree+1)
+        for j in range(degree+1):
+            d3N[j] = _lagrange_polynomial_3_derivative_(
+                root=j,
+                degree=degree,
+                eval_pts=eval_pts[0]
+            )[0]
+        return d3N

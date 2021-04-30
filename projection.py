@@ -1,6 +1,7 @@
 import numpy as np
 import interpolation as intp
 from scipy import optimize
+from errors import ConvergenceError
 
 
 def nearest_point_projection(
@@ -10,8 +11,8 @@ def nearest_point_projection(
     X: np.ndarray,
     P: np.ndarray,
     s0: float = 0.0,
-    TOLER: float = 1e-8,
-    MAXITER: int = 10
+    TOLER: float = 1e-12,
+    MAXITER: int = 20
 ) -> np.ndarray:
 
     n_nodes = len(X[0])
@@ -32,6 +33,8 @@ def nearest_point_projection(
         K[:3,1:] = np.identity(3)
         u += np.linalg.solve(K, R)
         i+= 1
+    if i == MAXITER:
+        raise ConvergenceError("Projection did not converge.")
     return u
 
 # def nearest_point_projection(

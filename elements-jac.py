@@ -531,6 +531,10 @@ class MortarContact(Element):
                 distance_all.append(distance)
             if len(candidate_elements) > 2:
                 print("Currently no forked beams are supported. The problem lays in finding the closest point algorithm.")
+                raise Exception()
+            if len(candidate_elements) == 0:
+                print("Projection error.")
+                raise Exception()
             gaps = [np.linalg.norm(di[1:]) for di in distance_all]
             if len(candidate_elements) == 2:
                 if -1 <= distance_all[0][0] and distance_all[0][0] <= 1 and -1 <= distance_all[1][0] and distance_all[1][0] <= 1:
@@ -547,15 +551,16 @@ class MortarContact(Element):
             self.int_pts[g].partner = candidate_elements[selected]
 
     def find_gap(self, X):
-        x1 = X[:,self.parent.nodes] @ self.N_displacement
         r1 = self.parent.prop.cr
         for g in range(len(self.int_pts)):
             partner = self.int_pts[g].partner
+            N1 = self.N_displacement[:,g]
+            x1 = X[:,self.parent.nodes] @ N1
             v = proj.nearest_point_projection(
                 partner.Ndis[0],
                 partner.Ndis[1],
                 partner.Ndis[2],
-                X[:,partner.nodes], x1[:,g]
+                X[:,partner.nodes], x1
             )
             r2 = self.int_pts[g].partner.prop.cr
             self.int_pts[g].gap = np.linalg.norm(v[1:]) - r1 - r2
@@ -576,8 +581,11 @@ class MortarContact(Element):
         for g in range(len(self.int_pts)):
             gN = self.int_pts[g].gap
             Phi1 = self.N_lagrange[:,g]
-            val += Phi1[l] * gN * self.int_pts[g].wgt
-        return self.parent.jacobian * val
+            dN1 = self.dN_displacement[:,g]
+            dx1 = X[:,self.parent.nodes] @ dN1
+            jac = np.linalg.norm(dx1)
+            val += Phi1[l] * gN * jac * self.int_pts[g].wgt
+        return val
 
     def pressure_condition_contribution(self, p, X, Lam):
         # This function computes elements contribution to node p weak
@@ -594,8 +602,11 @@ class MortarContact(Element):
             Phi1 = self.N_lagrange[:,g]
             lam = Lam[p] * Phi1[l]
             N1 = self.N_displacement[:,g]
-            val += N1[l] * lam * self.int_pts[g].wgt
-        return self.parent.jacobian * val
+            dN1 = self.dN_displacement[:,g]
+            dx1 = X[:,self.parent.nodes] @ dN1
+            jac = np.linalg.norm(dx1)
+            val += N1[l] * lam * jac * self.int_pts[g].wgt
+        return val
         
     def contact_tangent(self, X, Lam, n_nodes_in_mesh):
         n_dof = len(self.dof)
@@ -612,18 +623,20 @@ class MortarContact(Element):
             v = v_abs * n2
             Phi1 = self.N_lagrange[:,g]
             N1 = self.N_displacement[:,g]
+            dN1 = self.dN_displacement[:,g]
+            dx1 = X[:,self.parent.nodes] @ dN1
             lam = Lam[self.parent.nodes] @ Phi1
             N2 = partner.Ndis[0](s2)
-            dN2 = 1/partner.jacobian * partner.Ndis[1](s2)
-            ddN2 = 1/partner.jacobian**2 * partner.Ndis[2](s2)
+            dN2 = partner.Ndis[1](s2)
+            ddN2 = partner.Ndis[2](s2)
             dx2 = X[:,partner.nodes] @ dN2
             ddx2 = X[:,partner.nodes] @ ddN2
+            jac = np.linalg.norm(dx1)
             S2c = dx2 @ dx2 - v @ ddx2
-            G1 = lam / v_abs * ((math.skew(n2) @ math.skew(n2)) + np.outer(dx2, dx2) / S2c)
-            G2 = lam / S2c * np.outer(dx2, n2)
-            G3 = lam * v_abs / S2c * np.outer(n2, n2)
+            G1 = jac * lam / v_abs * ((math.skew(n2) @ math.skew(n2)) + np.outer(dx2, dx2) / S2c)
+            G2 = jac * lam / S2c * np.outer(dx2, n2)
+            G3 = jac * lam * v_abs / S2c * np.outer(n2, n2)
             nodes = (self.parent.nodes, partner.nodes)
-            
             for b1 in range(2):
                 for (i, I) in enumerate(nodes[b1]):
                     for b2 in range(2):
@@ -633,19 +646,19 @@ class MortarContact(Element):
                             Kl = np.zeros((n_dof, n_dof))
                             
                             if b1 == 0 and b2 == 0:
-                                Kl[:3,:3] = -N1[i] * G1 * N1[j]
-                                Kl[:3,6] = N1[i] * n2 * Phi1[j]
-                                Kl[6,:3] = Phi1[i] * n2 * N1[j]
+                                Kl[:3,:3] = -N1[i] * G1 * N1[j] + dN1[i] * lam * gN / jac * (np.identity(3) - 1/jac**2 * np.outer(dx1, dx1)) * dN1[j] + N1[i] * lam / jac * np.outer(n2, dx1) * dN1[j] + dN1[i] * lam / jac * np.outer(dx1, n2) * N1[j]
+                                Kl[:3,6] = N1[i] * jac * n2 * Phi1[j]
+                                Kl[6,:3] = Phi1[i] * jac * n2 * N1[j]
                             elif b1 == 0 and b2 == 1:
-                                Kl[:3,:3] = N1[i] * G1 * N2[j] - N1[i] * G2 * dN2[j]
-                                Kl[6,:3] = -Phi1[i] * n2 * N2[j]
+                                Kl[:3,:3] = N1[i] * G1 * N2[j] - N1[i] * G2 * dN2[j] - dN1[i] * lam / jac * np.outer(dx1, n2) * N2[j]
+                                Kl[6,:3] = -Phi1[i] * jac * n2 * N2[j]
                             elif b1 == 1 and b2 == 0:
-                                Kl[:3,:3] = N2[i] * G1 * N1[j] - dN2[i] * G2.T * N1[j]
-                                Kl[:3,6] = -N2[i] * n2 * Phi1[j]
+                                Kl[:3,:3] = N2[i] * G1 * N1[j] - dN2[i] * G2.T * N1[j] - N2[i] * lam / jac * np.outer(n2, dx1) * dN1[j]
+                                Kl[:3,6] = -N2[i] * jac * n2 * Phi1[j]
                             elif b1 == 1 and b2 == 1:
                                 Kl[:3,:3] = -N2[i] * G1 * N2[j] + N2[i] * G2 * dN2[j] + dN2[i] * G2.T * N2[j] - dN2[i] * G3 * dN2[j]
 
-                            Kg[np.ix_(row_dof, col_dof)] += self.int_pts[g].wgt * self.parent.jacobian * Kl
+                            Kg[np.ix_(row_dof, col_dof)] += self.int_pts[g].wgt * Kl
         return Kg
 
     def contact_residual(self, X, Lam, n_nodes_in_mesh):
@@ -658,6 +671,9 @@ class MortarContact(Element):
             s2 = self.int_pts[g].s2
             gN = self.int_pts[g].gap
             N1 = self.N_displacement[:,g]
+            dN1 = self.dN_displacement[:,g]
+            dx1 = X[:,self.parent.nodes] @ dN1
+            jac = np.linalg.norm(dx1)
             Phi1 = self.N_lagrange[:,g]
             lam = Lam[self.parent.nodes] @ Phi1
             N2 = partner.Ndis[0](s2)
@@ -668,11 +684,11 @@ class MortarContact(Element):
                     row_dof = list(range(n_dof*I,n_dof*(I+1)))
                         
                     if b1 == 0:
-                        Rl[:3] = lam * N1[i] * n2
-                        Rl[6] = Phi1[i] * gN
+                        Rl[:3] = N1[i] * jac * lam * n2 + dN1[i] * lam * gN / jac * dx1
+                        Rl[6] = Phi1[i] * jac * gN
                     elif b1 == 1:
-                        Rl[:3] = -lam * N2[i] * n2
-                    Rg[row_dof] += self.int_pts[g].wgt * self.parent.jacobian * Rl
+                        Rl[:3] = -N2[i] * jac * lam * n2
+                    Rg[row_dof] += self.int_pts[g].wgt * Rl
         return Rg
     
 def Xi_mat(
