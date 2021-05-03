@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import contact
 
 
-def patch(printing=True):
+def cantilever_contact(printing=True):
     if printing: print("Hello, world!\nThis is a FEM program for beam analysis.")
 
     # INITIALIZATION
@@ -22,16 +22,16 @@ def patch(printing=True):
     # Constructing a matrix of coordinates
     # The number of nodes is not allowed to change during the simulation
     
-    n_ele_1 = 2
-    ord_1 = 2
+    n_ele_1 = 10
+    ord_1 = 1
     n_nod_1 = ord_1*n_ele_1+1
     n_ele_2 = 1
-    ord_2 = 2
+    ord_2 = 1
     n_nod_2 = ord_2*n_ele_2+1
     coordinates = np.zeros((3,n_nod_1+n_nod_2))
-    coordinates[0,:n_nod_1] = np.linspace(0,10,n_nod_1)
-    coordinates[2,:n_nod_1] = 1.0
-    coordinates[0,n_nod_1:n_nod_1+n_nod_2] = np.linspace(0,10,n_nod_2)
+    coordinates[0,:n_nod_1] = np.linspace(0,100,n_nod_1)
+    coordinates[2,:n_nod_1] = 10
+    coordinates[0,n_nod_1:n_nod_1+n_nod_2] = np.linspace(0,100,n_nod_2)
     n_dim = coordinates.shape[0]
     n_nodes = coordinates.shape[1]
     n_dof = 7
@@ -70,11 +70,11 @@ def patch(printing=True):
             inertia_secondary=10.0,
             inertia_torsion=10.0,
             density=10.0,
-            contact_radius=0.3
+            contact_radius=4
         )
         element_on_beam_1.child = el.MortarContact(
             parent_element=element_on_beam_1,
-            n_integration_points=element_on_beam_1.int_pts[0].n_pts+5
+            n_integration_points=2
         )
         beam_1.append(element_on_beam_1)
 
@@ -94,7 +94,7 @@ def patch(printing=True):
             inertia_secondary=10.0,
             inertia_torsion=10.0,
             density=10.0,
-            contact_radius=0.3
+            contact_radius=4
         )
         beam_2.append(element_on_beam_2)
 
@@ -107,20 +107,19 @@ def patch(printing=True):
     #  step.
     active_dof = np.ones((2,n_dof,n_nodes), dtype=np.bool)
     active_dof[1][6] = False
-    active_dof[1][(0,1,2,3,5),0] = False
-    active_dof[1][(0,1,2,3,5),n_nod_1-1] = False
-    active_dof[1][(0,1,2,3,5),n_nod_1] = False
-    active_dof[1][(0,1,2,3,5),-1] = False
+    active_dof[1][:,0] = False
+    active_dof[1][:,n_nod_1] = False
     # Add force and/or displacements loads
     def Qload(t):
         Q = np.zeros(shape=(6, n_nodes))
-        Q0 = -np.pi/2
-        if t <= 15:
-            Q[4,0] = -Q0 * t
-            Q[4,n_nod_1-1] = Q0 * t
+        Q0 = -np.pi/20 / 150
+        T = 100
+        if t <= T:
+            Q[2,n_nod_1-1] = Q0 * t
+            Q[2,-1] = -Q0 * t
         else:
-            Q[4,0] = -15*Q0
-            Q[4,n_nod_1-1] = 15*Q0
+            Q[2,n_nod_1-1] = T*Q0
+            Q[2,-1] = -T*Q0
         return Q
     Qfollow = lambda t : np.zeros_like(Qload)
     Uload = lambda t : np.zeros(shape=(6, n_nodes))
@@ -132,11 +131,11 @@ def patch(printing=True):
     #  step.
     time_step = [None, 2.0]
     time = [None, 0.]
-    final_time = 20.
+    final_time = 110.
     
     # Select solver parameters
     max_number_of_time_steps = 300 #  100
-    max_number_of_newton_iterations = 10
+    max_number_of_newton_iterations = 60
     max_number_of_contact_iterations = 10
     tolerance = 1e-8
     conv_test = "RES"
@@ -178,7 +177,10 @@ def patch(printing=True):
         # Contact search
         active_nodes_changed = True
         for b1 in beam_1:
-            b1.child.find_partner(coordinates+displacement[2], mortar_nodes, mortar_elements)
+            try:
+                b1.child.find_partner(coordinates+displacement[2], mortar_nodes, mortar_elements)
+            except:
+                return finish_computation(beam_1, history, coordinates, displacement[2])
 
         contact_loop_counter = 0
         while active_nodes_changed:
@@ -221,7 +223,7 @@ def patch(printing=True):
                         tangent += c[0] * b1.child.contact_tangent(
                             coordinates+displacement[2], lagrange[2], n_nodes
                         )
-                    
+                        
                     # Follower load contributions
                     # ---
 
@@ -301,18 +303,22 @@ def patch(printing=True):
                 
                 # Contact forces
                 for b1 in beam_1:
-                    b1.child.find_gap(coordinates+displacement[2])
+                    try:
+                        b1.child.find_gap(coordinates+displacement[2])
+                    except:
+                        print("Algorithm was distrupted by error in gap computation.")
+                        return finish_computation(beam_1, history, coordinates, displacement[2])
                     contact_forces = np.reshape(
                         b1.child.contact_residual(coordinates+displacement[2], lagrange[2], n_nodes),
                         newshape=(n_dof, n_nodes),
                         order='F'
                     )
                     x -= contact_forces
-                
+                    
                 # ------------------------------------------------------
                 # Residual convergence
                 res_norm = np.linalg.norm(x[active_dof[1]])
-                print("residual:", res_norm)
+                # print("Residual", res_norm)
                 if conv_test == "RES" and res_norm <= tolerance:
                     if printing: print("\tTime step converged within", i+1, "iterations.\n")
                     break
@@ -320,7 +326,7 @@ def patch(printing=True):
             else:
                 print("\nMaximum number of iterations reached without "
                     + "convergence!")
-                return
+                return finish_computation(beam_1, history, coordinates, displacement[2])
         
             ############################################################
             # Continue contact
@@ -353,29 +359,34 @@ def patch(printing=True):
             if contact_loop_counter > max_number_of_contact_iterations:
                 print("\nContact: Maximum number of contact iterations",
                       "reached without convergence!")
-                return
+                return finish_computation(beam_1, history, coordinates, displacement[2])
 
         ################################################################
         # Finish time step
         if time[1] >= final_time:
             if printing: print("Computation is finished, reached the end of time.")
             history.append(coordinates+displacement[0].copy())
-            h = np.array(history)
-            gap_function = []
-            for b1 in beam_1:
-                for g in range(len(b1.child.int_pts)):
-                    x = X[0,b1.nodes] @ b1.child.N_displacement[:,g]
-                    y = b1.child.int_pts[g].gap
-                    gap_function.append([x,y])
-            gap_function = np.array(gap_function)
-            return (h, gap_function)
+            return finish_computation(beam_1, history, coordinates, displacement[2])
 
     if printing: print("Final time was never reached.")
-    return
+    return finish_computation(beam_1, history, coordinates, displacement[2])
+
+def finish_computation(beam_1, history, coordinates, displacement):
+    X = coordinates + displacement
+    gap_function = []
+    for b1 in beam_1:
+        for g in range(len(b1.child.int_pts)):
+            x = X[0,b1.nodes] @ b1.child.N_displacement[:,g]
+            y = b1.child.int_pts[g].gap
+            gap_function.append([x,y])
+    gap_function = np.array(gap_function)
+    h = np.array(history)
+    return (h, gap_function)
 
 def main():
-    (h, gap_function) = patch()
-    n_nod_1 = 3
+    np.set_printoptions(linewidth=300, floatmode='fixed', precision=5)
+    (h, gap_function) = cantilever_contact()
+    n_nod_1 = np.argmin(h[0,0,1:])+1
     color_map = plt.get_cmap("tab10")
     c0 = color_map(0)
     c1 = color_map(1)
@@ -389,8 +400,8 @@ def main():
             plt.plot(h[i,0,n_nod_1:],h[i,2,n_nod_1:], '-', linewidth=6.0, color=c1, alpha=0.5)
             plt.plot(h[i,0,:n_nod_1],h[i,2,:n_nod_1], '.-', label=i, color=c1)
             plt.plot(h[i,0,n_nod_1:],h[i,2,n_nod_1:], '.-', color=c1)
-            plt.xlim((-2,13))
-            plt.ylim((-3,7))
+            plt.xlim((-20,130))
+            plt.ylim((-30,70))
             plt.legend()
             plt.show()
     plt.plot(gap_function[:,0], gap_function[:,1], 'o')

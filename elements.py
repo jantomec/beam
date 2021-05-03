@@ -478,11 +478,11 @@ class MortarContact(Element):
         self.dof = dof
 
         # Lagrange multiplier interpolation
+        # self.Nlam = [
+        #     lambda x: intp.lagrange_polynomial(self.parent.n_nodes-1, x)
+        # ]
         self.Nlam = [
-            lambda x: intp.lagrange_polynomial(self.parent.n_nodes-1, x),
-            lambda x: intp.lagrange_polynomial_derivative(self.parent.n_nodes-1, x),
-            lambda x: intp.lagrange_polynomial_2_derivative(self.parent.n_nodes-1, x),
-            lambda x: intp.lagrange_polynomial_3_derivative(self.parent.n_nodes-1, x)
+            lambda x: intp.dual_basis_function(self.parent.n_nodes-1, x)
         ]
         
         lg = np.polynomial.legendre.leggauss(n_integration_points)
@@ -496,7 +496,6 @@ class MortarContact(Element):
             self.N_displacement = self.parent.Ndis[0]([self.int_pts[g].loc for g in range(len(self.int_pts))])
             self.dN_displacement = self.parent.Ndis[1]([self.int_pts[g].loc for g in range(len(self.int_pts))])
             self.N_lagrange = self.Nlam[0]([self.int_pts[g].loc for g in range(len(self.int_pts))])
-            self.dN_lagrange = self.Nlam[1]([self.int_pts[g].loc for g in range(len(self.int_pts))])
 
     def closest_mortar_node(self, X, mortar_nodes):
         x = X[:,self.parent.nodes] @ self.N_displacement

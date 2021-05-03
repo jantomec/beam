@@ -4,7 +4,7 @@
         "-s",
         ".",
         "-p",
-        "*_test.py"
+        "unitest_*.py"
     ],
     "python.testing.pytestEnabled": false,
     "python.testing.nosetestsEnabled": false,

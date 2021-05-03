@@ -179,3 +179,17 @@ def lagrange_polynomial_3_derivative(
                 eval_pts=eval_pts[0]
             )[0]
         return d3N
+
+def dual_basis_function(degree, eval_pts):
+    n_integration_points = 2 * (degree + 1) - 1
+    (sg, wg) = np.polynomial.legendre.leggauss(n_integration_points)
+    phi = lagrange_polynomial(degree, sg)
+    a = np.zeros((degree+1, degree+1))
+    for j in range(degree+1):
+        L = np.zeros((degree+1, degree+1))
+        R = np.zeros(degree+1)
+        for g in range(n_integration_points):
+            L += wg[g] * np.outer(phi[:,g], phi[:,g])
+            R[j] += wg[g] * phi[j,g]
+            a[j] = np.linalg.solve(L, R)
+    return a @ lagrange_polynomial(degree, eval_pts)

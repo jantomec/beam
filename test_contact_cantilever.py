@@ -22,8 +22,8 @@ def cantilever_contact(printing=True):
     # Constructing a matrix of coordinates
     # The number of nodes is not allowed to change during the simulation
     
-    n_ele_1 = 3
-    ord_1 = 2
+    n_ele_1 = 10
+    ord_1 = 1
     n_nod_1 = ord_1*n_ele_1+1
     n_ele_2 = 1
     ord_2 = 1
@@ -74,7 +74,7 @@ def cantilever_contact(printing=True):
         )
         element_on_beam_1.child = el.MortarContact(
             parent_element=element_on_beam_1,
-            n_integration_points=6
+            n_integration_points=2
         )
         beam_1.append(element_on_beam_1)
 
@@ -317,7 +317,7 @@ def cantilever_contact(printing=True):
                 # ------------------------------------------------------
                 # Residual convergence
                 res_norm = np.linalg.norm(x[active_dof[1]])
-                print(res_norm, ",", sep='')
+                # print("Residual", res_norm)
                 if conv_test == "RES" and res_norm <= tolerance:
                     if printing: print("\tTime step converged within", i+1, "iterations.\n")
                     break

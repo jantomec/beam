@@ -31,5 +31,10 @@ class TestInterpolation(unittest.TestCase):
         u = intp.lagrange_polynomial_3_derivative(degree=2, eval_pts=[-0.3,0.3])
         self.assertTrue(np.allclose(u, correct, rtol=1e-10))
 
+    def test_dual_basis_function(self):
+        correct = np.array([-0.25, 1.5, -0.25])
+        u = intp.dual_basis_function(2, 0)
+        self.assertTrue(np.allclose(u, correct, rtol=1e-10))
+
 if __name__ == '__main__':
     unittest.main()
