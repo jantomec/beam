@@ -8,7 +8,7 @@ class TestSimoElement(unittest.TestCase):
 
     def test_cantilever(self):
         correct = np.zeros(3)
-        u = test_contact_cantilever.cantilever(printing=False)[-1,:,-1]
+        u = test_static_cantilever.cantilever(printing=False)[-1,:,-1]
         self.assertTrue(np.allclose(u, correct, rtol=1e-10))
 
     def test_frame(self):
