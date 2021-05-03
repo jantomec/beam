@@ -2,16 +2,22 @@ import unittest
 import numpy as np
 import test_static_cantilever
 import test_dynamic_frame
+import test_static_cantilever_displacement_control
 
 
 class TestSimoElement(unittest.TestCase):
 
-    def test_cantilever(self):
+    def test_static_cantilever(self):
         correct = np.zeros(3)
         u = test_static_cantilever.cantilever(printing=False)[-1,:,-1]
         self.assertTrue(np.allclose(u, correct, rtol=1e-10))
 
-    def test_frame(self):
+    def test_static_cantilever_displacement_control(self):
+        correct = np.array([0.39938606, 0., 0.02123135])
+        u = test_static_cantilever_displacement_control.cantilever(printing=False)[-1][:,2]
+        self.assertTrue(np.allclose(u, correct, rtol=1e-10))
+
+    def test_dynamic_frame(self):
         correct = np.array([[ 0.,-0.77500735,-1.28238162,-1.36128958,-1.57274618],
                             [ 0., 0.30816282, 0.20936808, 0.08018192, 0.68076979],
                             [ 0.,-0.07214447,-0.10100747,-0.93952252,-2.22247546]])

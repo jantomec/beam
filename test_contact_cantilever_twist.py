@@ -1,6 +1,7 @@
 import numpy as np
-import elements as el
+from mpl_toolkits import mplot3d
 import matplotlib.pyplot as plt
+import elements as el
 import contact
 
 
@@ -25,13 +26,14 @@ def cantilever_contact(printing=True):
     n_ele_1 = 5
     ord_1 = 1
     n_nod_1 = ord_1*n_ele_1+1
-    n_ele_2 = 1
+    n_ele_2 = 5
     ord_2 = 1
     n_nod_2 = ord_2*n_ele_2+1
     coordinates = np.zeros((3,n_nod_1+n_nod_2))
     coordinates[0,:n_nod_1] = np.linspace(0,100,n_nod_1)
-    coordinates[2,:n_nod_1] = 10
+    coordinates[2,:n_nod_1] = 5
     coordinates[0,n_nod_1:n_nod_1+n_nod_2] = np.linspace(0,100,n_nod_2)
+    coordinates[2,n_nod_1:n_nod_1+n_nod_2] = -5
     n_dim = coordinates.shape[0]
     n_nodes = coordinates.shape[1]
     n_dof = 7
@@ -66,11 +68,11 @@ def cantilever_contact(printing=True):
             area=10.0,
             elastic_modulus=10.0,
             shear_modulus=10.0,
-            inertia_primary=20.0,
+            inertia_primary=10.0,
             inertia_secondary=10.0,
             inertia_torsion=10.0,
             density=10.0,
-            contact_radius=4
+            contact_radius=2
         )
         element_on_beam_1.child = el.MortarContact(
             parent_element=element_on_beam_1,
@@ -90,11 +92,11 @@ def cantilever_contact(printing=True):
             area=10.0,
             elastic_modulus=10.0,
             shear_modulus=10.0,
-            inertia_primary=20.0,
+            inertia_primary=10.0,
             inertia_secondary=10.0,
             inertia_torsion=10.0,
             density=10.0,
-            contact_radius=4
+            contact_radius=2
         )
         beam_2.append(element_on_beam_2)
 
@@ -109,36 +111,37 @@ def cantilever_contact(printing=True):
     active_dof[1][6] = False
     active_dof[1][:,0] = False
     active_dof[1][:,n_nod_1] = False
-    active_dof[1][:,-1] = False
+    active_dof[1][[0,3,4,5],n_nod_1-1] = False
+    active_dof[1][[0,3,4,5],-1] = False
     # Add force and/or displacements loads
     def Qload(t):
         Q = np.zeros(shape=(6, n_nodes))
-        Q0 = np.pi/50
-        T = 100
-        if t <= T:
-            Q[4,n_nod_1-1] = Q0 * t
-        else:
-            Q[4,n_nod_1-1] = T*Q0
         return Q
     Qfollow = lambda t : np.zeros_like(Qload)
-    Uload = lambda t : np.zeros(shape=(6, n_nodes))
-    
+    def Uload(t):
+        Q = np.zeros(shape=(6, n_nodes))
+        Q0 = 5.0
+        Q[1,n_nod_1-1] = -np.sin(t) * Q0
+        Q[2,n_nod_1-1] = Q0 - np.cos(t) * Q0
+        Q[1,-1] = np.sin(t) * Q0
+        Q[2,-1] = np.cos(t) * Q0 - Q0
+        return Q
     # Note that additional nodal values can be added if necessary simply by creating new matrices
 
     # Initiating time
     # Variable doesn't change with Newton iterations, only with time 
     #  step.
-    time_step = [None, 2.0]
+    time_step = [None, 0.2]
     time = [None, 0.]
-    final_time = 110.
+    final_time = 6.
     
     # Select solver parameters
     max_number_of_time_steps = 300 #  100
     max_number_of_newton_iterations = 60
     max_number_of_contact_iterations = 10
     tolerance = 1e-8
-    conv_test = "RES"
-    # conv_test = "DSP"
+    # conv_test = "RES"
+    conv_test = "DSP"
     # conv_test = "ENE"
     
     if printing: print("We use Newmark-beta method.")
@@ -389,19 +392,22 @@ def main():
     color_map = plt.get_cmap("tab10")
     c0 = color_map(0)
     c1 = color_map(1)
+    
     if type(h) == np.ndarray:
         for i in range(1,len(h),1):
-            plt.plot(h[0,0,:n_nod_1],h[0,2,:n_nod_1], '-', linewidth=6.0, color=c0, alpha=0.5)
-            plt.plot(h[0,0,n_nod_1:],h[0,2,n_nod_1:], '-', linewidth=6.0, color=c0, alpha=0.5)
-            plt.plot(h[0,0,:n_nod_1],h[0,2,:n_nod_1], '.-', color=c0)
-            plt.plot(h[0,0,n_nod_1:],h[0,2,n_nod_1:], '.-', color=c0)
-            plt.plot(h[i,0,:n_nod_1],h[i,2,:n_nod_1], '-', linewidth=6.0, color=c1, alpha=0.5)
-            plt.plot(h[i,0,n_nod_1:],h[i,2,n_nod_1:], '-', linewidth=6.0, color=c1, alpha=0.5)
-            plt.plot(h[i,0,:n_nod_1],h[i,2,:n_nod_1], '.-', label=i, color=c1)
-            plt.plot(h[i,0,n_nod_1:],h[i,2,n_nod_1:], '.-', color=c1)
-            plt.xlim((-20,130))
-            plt.ylim((-30,70))
-            plt.legend()
+            fig = plt.figure()
+            ax = plt.axes(projection='3d')
+            ax.plot3D(h[0,0,:n_nod_1],h[0,1,:n_nod_1],h[0,2,:n_nod_1], '-', linewidth=6.0, color=c0, alpha=0.5)
+            ax.plot3D(h[0,0,n_nod_1:],h[0,1,:n_nod_1],h[0,2,n_nod_1:], '-', linewidth=6.0, color=c0, alpha=0.5)
+            ax.plot3D(h[0,0,:n_nod_1],h[0,1,:n_nod_1],h[0,2,:n_nod_1], '.-', color=c0)
+            ax.plot3D(h[0,0,n_nod_1:],h[0,1,n_nod_1:],h[0,2,n_nod_1:], '.-', color=c0)
+            ax.plot3D(h[i,0,:n_nod_1],h[i,1,:n_nod_1],h[i,2,:n_nod_1], '-', linewidth=6.0, color=c1, alpha=0.5)
+            ax.plot3D(h[i,0,n_nod_1:],h[i,1,n_nod_1:],h[i,2,n_nod_1:], '-', linewidth=6.0, color=c1, alpha=0.5)
+            ax.plot3D(h[i,0,:n_nod_1],h[i,1,:n_nod_1],h[i,2,:n_nod_1], '.-', label=i, color=c1)
+            ax.plot3D(h[i,0,n_nod_1:],h[i,1,n_nod_1:],h[i,2,n_nod_1:], '.-', color=c1)
+            ax.set_xlim((-20,130))
+            ax.set_ylim((-30,70))
+            ax.set_zlim((-30,70))
             plt.show()
     plt.plot(gap_function[:,0], gap_function[:,1], 'o')
     plt.show()

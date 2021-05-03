@@ -229,52 +229,51 @@ class SimoBeam(Element):
                     1 / (dt**2*beta) * (arm2 - arm1)
                 )
 
-            E1 = np.array([1, 0, 0])
-            dx = 1 / self.jacobian * x @ self.int_pts[1].dN_displacement
-            
-            th = th_iter @ self.int_pts[1].N_rotation
-            dth = 1 / self.jacobian * th_iter @ self.int_pts[1].dN_rotation
-            for g in range(self.int_pts[1].n_pts):
-                dq = math.rotvec_to_quat(th[:,g])
-                self.int_pts[1].rot[2,:,g] = math.hamp(
-                    dq, self.int_pts[1].rot[2,:,g]
-                )
+        E1 = np.array([1, 0, 0])
+        dx = 1 / self.jacobian * x @ self.int_pts[1].dN_displacement
+        th = th_iter @ self.int_pts[1].N_rotation
+        dth = 1 / self.jacobian * th_iter @ self.int_pts[1].dN_rotation
+        for g in range(self.int_pts[1].n_pts):
+            dq = math.rotvec_to_quat(th[:,g])
+            self.int_pts[1].rot[2,:,g] = math.hamp(
+                dq, self.int_pts[1].rot[2,:,g]
+            )
 
-                thn = np.linalg.norm(th[:,g])
-                if thn == 0:
-                    self.int_pts[1].om[:,g] += dth[:,g]
-                else:
-                    self.int_pts[1].om[:,g] = (
-                        (1 - np.sin(thn) / thn) *
-                        np.dot(th[:,g], dth[:,g]) /
-                        thn ** 2 * th[:,g] +
-                        np.sin(thn) / thn * dth[:,g] +
-                        (1 - np.cos(thn)) / thn ** 2 *
-                        np.cross(th[:,g], dth[:,g]) +
-                        np.cos(thn) * self.int_pts[1].om[:,g] +
-                        (1 - np.cos(thn)) / thn ** 2 *
-                        np.dot(th[:,g], self.int_pts[1].om[:,g]) *
-                        th[:,g] + np.sin(thn) / thn * np.cross(
-                            th[:,g],
-                            self.int_pts[1].om[:,g]
-                        )
+            thn = np.linalg.norm(th[:,g])
+            if thn == 0:
+                self.int_pts[1].om[:,g] += dth[:,g]
+            else:
+                self.int_pts[1].om[:,g] = (
+                    (1 - np.sin(thn) / thn) *
+                    np.dot(th[:,g], dth[:,g]) /
+                    thn ** 2 * th[:,g] +
+                    np.sin(thn) / thn * dth[:,g] +
+                    (1 - np.cos(thn)) / thn ** 2 *
+                    np.cross(th[:,g], dth[:,g]) +
+                    np.cos(thn) * self.int_pts[1].om[:,g] +
+                    (1 - np.cos(thn)) / thn ** 2 *
+                    np.dot(th[:,g], self.int_pts[1].om[:,g]) *
+                    th[:,g] + np.sin(thn) / thn * np.cross(
+                        th[:,g],
+                        self.int_pts[1].om[:,g]
                     )
-                Gamma = math.rotate(
-                    math.conjugate_quat(self.int_pts[1].rot[2,:,g]),
-                    dx[:,g]
-                ) - E1
-                kappa = math.rotate(
-                    math.conjugate_quat(self.int_pts[1].rot[2,:,g]),
-                    self.int_pts[1].om[:,g]
                 )
-                fn = self.prop.C[:3,:3] @ Gamma
-                fm = self.prop.C[3:,3:] @ kappa
-                self.int_pts[1].f[:3,g] = math.rotate(
-                    self.int_pts[1].rot[2,:,g], fn
-                )
-                self.int_pts[1].f[3:,g] = math.rotate(
-                    self.int_pts[1].rot[2,:,g], fm
-                )
+            Gamma = math.rotate(
+                math.conjugate_quat(self.int_pts[1].rot[2,:,g]),
+                dx[:,g]
+            ) - E1
+            kappa = math.rotate(
+                math.conjugate_quat(self.int_pts[1].rot[2,:,g]),
+                self.int_pts[1].om[:,g]
+            )
+            fn = self.prop.C[:3,:3] @ Gamma
+            fm = self.prop.C[3:,3:] @ kappa
+            self.int_pts[1].f[:3,g] = math.rotate(
+                self.int_pts[1].rot[2,:,g], fn
+            )
+            self.int_pts[1].f[3:,g] = math.rotate(
+                self.int_pts[1].rot[2,:,g], fm
+            )
 
 
     def stiffness_matrix(self, x: np.ndarray) -> np.ndarray:
@@ -478,11 +477,11 @@ class MortarContact(Element):
         self.dof = dof
 
         # Lagrange multiplier interpolation
+        # self.Nlam = [
+        #     lambda x: intp.lagrange_polynomial(self.parent.n_nodes-1, x)
+        # ]
         self.Nlam = [
-            lambda x: intp.lagrange_polynomial(self.parent.n_nodes-1, x),
-            lambda x: intp.lagrange_polynomial_derivative(self.parent.n_nodes-1, x),
-            lambda x: intp.lagrange_polynomial_2_derivative(self.parent.n_nodes-1, x),
-            lambda x: intp.lagrange_polynomial_3_derivative(self.parent.n_nodes-1, x)
+            lambda x: intp.dual_basis_function(self.parent.n_nodes-1, x)
         ]
         
         lg = np.polynomial.legendre.leggauss(n_integration_points)
@@ -496,7 +495,6 @@ class MortarContact(Element):
             self.N_displacement = self.parent.Ndis[0]([self.int_pts[g].loc for g in range(len(self.int_pts))])
             self.dN_displacement = self.parent.Ndis[1]([self.int_pts[g].loc for g in range(len(self.int_pts))])
             self.N_lagrange = self.Nlam[0]([self.int_pts[g].loc for g in range(len(self.int_pts))])
-            self.dN_lagrange = self.Nlam[1]([self.int_pts[g].loc for g in range(len(self.int_pts))])
 
     def closest_mortar_node(self, X, mortar_nodes):
         x = X[:,self.parent.nodes] @ self.N_displacement
@@ -531,10 +529,6 @@ class MortarContact(Element):
                 distance_all.append(distance)
             if len(candidate_elements) > 2:
                 print("Currently no forked beams are supported. The problem lays in finding the closest point algorithm.")
-                raise Exception()
-            if len(candidate_elements) == 0:
-                print("Projection error.")
-                raise Exception()
             gaps = [np.linalg.norm(di[1:]) for di in distance_all]
             if len(candidate_elements) == 2:
                 if -1 <= distance_all[0][0] and distance_all[0][0] <= 1 and -1 <= distance_all[1][0] and distance_all[1][0] <= 1:
@@ -551,16 +545,15 @@ class MortarContact(Element):
             self.int_pts[g].partner = candidate_elements[selected]
 
     def find_gap(self, X):
+        x1 = X[:,self.parent.nodes] @ self.N_displacement
         r1 = self.parent.prop.cr
         for g in range(len(self.int_pts)):
             partner = self.int_pts[g].partner
-            N1 = self.N_displacement[:,g]
-            x1 = X[:,self.parent.nodes] @ N1
             v = proj.nearest_point_projection(
                 partner.Ndis[0],
                 partner.Ndis[1],
                 partner.Ndis[2],
-                X[:,partner.nodes], x1
+                X[:,partner.nodes], x1[:,g]
             )
             r2 = self.int_pts[g].partner.prop.cr
             self.int_pts[g].gap = np.linalg.norm(v[1:]) - r1 - r2
@@ -581,11 +574,8 @@ class MortarContact(Element):
         for g in range(len(self.int_pts)):
             gN = self.int_pts[g].gap
             Phi1 = self.N_lagrange[:,g]
-            dN1 = self.dN_displacement[:,g]
-            dx1 = X[:,self.parent.nodes] @ dN1
-            jac = np.linalg.norm(dx1)
-            val += Phi1[l] * gN * jac * self.int_pts[g].wgt
-        return val
+            val += Phi1[l] * gN * self.int_pts[g].wgt
+        return self.parent.jacobian * val
 
     def pressure_condition_contribution(self, p, X, Lam):
         # This function computes elements contribution to node p weak
@@ -602,11 +592,8 @@ class MortarContact(Element):
             Phi1 = self.N_lagrange[:,g]
             lam = Lam[p] * Phi1[l]
             N1 = self.N_displacement[:,g]
-            dN1 = self.dN_displacement[:,g]
-            dx1 = X[:,self.parent.nodes] @ dN1
-            jac = np.linalg.norm(dx1)
-            val += N1[l] * lam * jac * self.int_pts[g].wgt
-        return val
+            val += N1[l] * lam * self.int_pts[g].wgt
+        return self.parent.jacobian * val
         
     def contact_tangent(self, X, Lam, n_nodes_in_mesh):
         n_dof = len(self.dof)
@@ -623,20 +610,18 @@ class MortarContact(Element):
             v = v_abs * n2
             Phi1 = self.N_lagrange[:,g]
             N1 = self.N_displacement[:,g]
-            dN1 = self.dN_displacement[:,g]
-            dx1 = X[:,self.parent.nodes] @ dN1
             lam = Lam[self.parent.nodes] @ Phi1
             N2 = partner.Ndis[0](s2)
-            dN2 = partner.Ndis[1](s2)
-            ddN2 = partner.Ndis[2](s2)
+            dN2 = 1/partner.jacobian * partner.Ndis[1](s2)
+            ddN2 = 1/partner.jacobian**2 * partner.Ndis[2](s2)
             dx2 = X[:,partner.nodes] @ dN2
             ddx2 = X[:,partner.nodes] @ ddN2
-            jac = np.linalg.norm(dx1)
             S2c = dx2 @ dx2 - v @ ddx2
-            G1 = jac * lam / v_abs * ((math.skew(n2) @ math.skew(n2)) + np.outer(dx2, dx2) / S2c)
-            G2 = jac * lam / S2c * np.outer(dx2, n2)
-            G3 = jac * lam * v_abs / S2c * np.outer(n2, n2)
+            G1 = lam / v_abs * ((math.skew(n2) @ math.skew(n2)) + np.outer(dx2, dx2) / S2c)
+            G2 = lam / S2c * np.outer(dx2, n2)
+            G3 = lam * v_abs / S2c * np.outer(n2, n2)
             nodes = (self.parent.nodes, partner.nodes)
+            
             for b1 in range(2):
                 for (i, I) in enumerate(nodes[b1]):
                     for b2 in range(2):
@@ -646,19 +631,19 @@ class MortarContact(Element):
                             Kl = np.zeros((n_dof, n_dof))
                             
                             if b1 == 0 and b2 == 0:
-                                Kl[:3,:3] = -N1[i] * G1 * N1[j] + dN1[i] * lam * gN / jac * (np.identity(3) - 1/jac**2 * np.outer(dx1, dx1)) * dN1[j] + N1[i] * lam / jac * np.outer(n2, dx1) * dN1[j] + dN1[i] * lam / jac * np.outer(dx1, n2) * N1[j]
-                                Kl[:3,6] = N1[i] * jac * n2 * Phi1[j]
-                                Kl[6,:3] = Phi1[i] * jac * n2 * N1[j]
+                                Kl[:3,:3] = -N1[i] * G1 * N1[j]
+                                Kl[:3,6] = N1[i] * n2 * Phi1[j]
+                                Kl[6,:3] = Phi1[i] * n2 * N1[j]
                             elif b1 == 0 and b2 == 1:
-                                Kl[:3,:3] = N1[i] * G1 * N2[j] - N1[i] * G2 * dN2[j] - dN1[i] * lam / jac * np.outer(dx1, n2) * N2[j]
-                                Kl[6,:3] = -Phi1[i] * jac * n2 * N2[j]
+                                Kl[:3,:3] = N1[i] * G1 * N2[j] - N1[i] * G2 * dN2[j]
+                                Kl[6,:3] = -Phi1[i] * n2 * N2[j]
                             elif b1 == 1 and b2 == 0:
-                                Kl[:3,:3] = N2[i] * G1 * N1[j] - dN2[i] * G2.T * N1[j] - N2[i] * lam / jac * np.outer(n2, dx1) * dN1[j]
-                                Kl[:3,6] = -N2[i] * jac * n2 * Phi1[j]
+                                Kl[:3,:3] = N2[i] * G1 * N1[j] - dN2[i] * G2.T * N1[j]
+                                Kl[:3,6] = -N2[i] * n2 * Phi1[j]
                             elif b1 == 1 and b2 == 1:
                                 Kl[:3,:3] = -N2[i] * G1 * N2[j] + N2[i] * G2 * dN2[j] + dN2[i] * G2.T * N2[j] - dN2[i] * G3 * dN2[j]
 
-                            Kg[np.ix_(row_dof, col_dof)] += self.int_pts[g].wgt * Kl
+                            Kg[np.ix_(row_dof, col_dof)] += self.int_pts[g].wgt * self.parent.jacobian * Kl
         return Kg
 
     def contact_residual(self, X, Lam, n_nodes_in_mesh):
@@ -671,9 +656,6 @@ class MortarContact(Element):
             s2 = self.int_pts[g].s2
             gN = self.int_pts[g].gap
             N1 = self.N_displacement[:,g]
-            dN1 = self.dN_displacement[:,g]
-            dx1 = X[:,self.parent.nodes] @ dN1
-            jac = np.linalg.norm(dx1)
             Phi1 = self.N_lagrange[:,g]
             lam = Lam[self.parent.nodes] @ Phi1
             N2 = partner.Ndis[0](s2)
@@ -684,11 +666,11 @@ class MortarContact(Element):
                     row_dof = list(range(n_dof*I,n_dof*(I+1)))
                         
                     if b1 == 0:
-                        Rl[:3] = N1[i] * jac * lam * n2 + dN1[i] * lam * gN / jac * dx1
-                        Rl[6] = Phi1[i] * jac * gN
+                        Rl[:3] = lam * N1[i] * n2
+                        Rl[6] = Phi1[i] * gN
                     elif b1 == 1:
-                        Rl[:3] = -N2[i] * jac * lam * n2
-                    Rg[row_dof] += self.int_pts[g].wgt * Rl
+                        Rl[:3] = -lam * N2[i] * n2
+                    Rg[row_dof] += self.int_pts[g].wgt * self.parent.jacobian * Rl
         return Rg
     
 def Xi_mat(
