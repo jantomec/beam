@@ -30,10 +30,10 @@ def cantilever_contact(printing=True):
     ord_2 = 1
     n_nod_2 = ord_2*n_ele_2+1
     coordinates = np.zeros((3,n_nod_1+n_nod_2))
-    coordinates[0,:n_nod_1] = np.linspace(0,100,n_nod_1)
-    coordinates[2,:n_nod_1] = 5
-    coordinates[0,n_nod_1:n_nod_1+n_nod_2] = np.linspace(0,100,n_nod_2)
-    coordinates[2,n_nod_1:n_nod_1+n_nod_2] = -5
+    coordinates[0,:n_nod_1] = np.linspace(0,300,n_nod_1)
+    coordinates[2,:n_nod_1] = 3.5
+    coordinates[0,n_nod_1:n_nod_1+n_nod_2] = np.linspace(0,300,n_nod_2)
+    coordinates[2,n_nod_1:n_nod_1+n_nod_2] = -3.5
     n_dim = coordinates.shape[0]
     n_nodes = coordinates.shape[1]
     n_dof = 7
@@ -65,18 +65,18 @@ def cantilever_contact(printing=True):
             ref_vec=np.array([0,0,1]),
             coordinates=coordinates[:,ele_nodes(i, ord_1)],
             beam=0,
-            area=10.0,
-            elastic_modulus=10.0,
-            shear_modulus=10.0,
-            inertia_primary=10.0,
-            inertia_secondary=10.0,
-            inertia_torsion=10.0,
-            density=10.0,
-            contact_radius=2
+            area=np.pi,
+            elastic_modulus=210.0e+3,
+            shear_modulus=80.0e+3,
+            inertia_primary=0.785,
+            inertia_secondary=0.785,
+            inertia_torsion=1.57,
+            density=1.0,
+            contact_radius=3
         )
         element_on_beam_1.child = el.MortarContact(
             parent_element=element_on_beam_1,
-            n_integration_points=2
+            n_integration_points=2*n_nod_1
         )
         beam_1.append(element_on_beam_1)
 
@@ -89,14 +89,14 @@ def cantilever_contact(printing=True):
             ref_vec=np.array([0,0,1]),
             coordinates=coordinates[:,ele_nodes(i, ord_2)+n_nod_1],
             beam=1,
-            area=10.0,
-            elastic_modulus=10.0,
-            shear_modulus=10.0,
-            inertia_primary=10.0,
-            inertia_secondary=10.0,
-            inertia_torsion=10.0,
-            density=10.0,
-            contact_radius=2
+            area=np.pi,
+            elastic_modulus=210.0e+3,
+            shear_modulus=80.0e+3,
+            inertia_primary=0.785,
+            inertia_secondary=0.785,
+            inertia_torsion=1.57,
+            density=1.0,
+            contact_radius=3
         )
         beam_2.append(element_on_beam_2)
 
@@ -109,22 +109,28 @@ def cantilever_contact(printing=True):
     #  step.
     active_dof = np.ones((2,n_dof,n_nodes), dtype=np.bool)
     active_dof[1][6] = False
-    active_dof[1][:,0] = False
-    active_dof[1][:,n_nod_1] = False
-    active_dof[1][[0,3,4,5],n_nod_1-1] = False
-    active_dof[1][[0,3,4,5],-1] = False
+    active_dof[1][:6,0] = False
+    active_dof[1][:6,n_nod_1] = False
+    active_dof[1][:3,n_nod_1-1] = False
+    active_dof[1][:3,-1] = False
     # Add force and/or displacements loads
     def Qload(t):
         Q = np.zeros(shape=(6, n_nodes))
         return Q
     Qfollow = lambda t : np.zeros_like(Qload)
-    def Uload(t):
+    def Uload(t, dt):
         Q = np.zeros(shape=(6, n_nodes))
-        Q0 = 5.0
-        Q[1,n_nod_1-1] = -np.sin(t) * Q0
-        Q[2,n_nod_1-1] = Q0 - np.cos(t) * Q0
-        Q[1,-1] = np.sin(t) * Q0
-        Q[2,-1] = np.cos(t) * Q0 - Q0
+        Q0 = 3.0
+        if t == 0:
+            Q[1,n_nod_1-1] = -Q0 * np.sin(t)
+            Q[2,n_nod_1-1] = Q0 * (np.cos(t) - 1)
+            Q[1,-1] = Q0 * np.sin(t)
+            Q[2,-1] = Q0 * (1 - np.cos(t))
+        else:
+            Q[1,n_nod_1-1] = -Q0 * (np.sin(t) - np.sin(t-dt))
+            Q[2,n_nod_1-1] = Q0 * (np.cos(t) - np.cos(t-dt))
+            Q[1,-1] = Q0 * (np.sin(t) - np.sin(t-dt))
+            Q[2,-1] = -Q0 * (np.cos(t) - np.cos(t-dt))
         return Q
     # Note that additional nodal values can be added if necessary simply by creating new matrices
 
@@ -189,7 +195,7 @@ def cantilever_contact(printing=True):
             active_nodes_changed = False
             # Apply displacement load
             x[:] = 0.0
-            x[:6] = Uload(time[1])
+            x[:6] = Uload(time[1], time_step[1])
             ############################################################
             # Newton-Raphson iteration
             for i in range(max_number_of_newton_iterations):
@@ -405,9 +411,10 @@ def main():
             ax.plot3D(h[i,0,n_nod_1:],h[i,1,n_nod_1:],h[i,2,n_nod_1:], '-', linewidth=6.0, color=c1, alpha=0.5)
             ax.plot3D(h[i,0,:n_nod_1],h[i,1,:n_nod_1],h[i,2,:n_nod_1], '.-', label=i, color=c1)
             ax.plot3D(h[i,0,n_nod_1:],h[i,1,n_nod_1:],h[i,2,n_nod_1:], '.-', color=c1)
-            ax.set_xlim((-20,130))
+            ax.set_xlim((-20,320))
             ax.set_ylim((-30,70))
             ax.set_zlim((-30,70))
+            ax.set_title('Time step ' + str(i))
             plt.show()
     plt.plot(gap_function[:,0], gap_function[:,1], 'o')
     plt.show()

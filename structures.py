@@ -3,6 +3,10 @@ from typing import Callable
 import interpolation as intp
 
 
+class System:
+    def __init__(self, coordinates):
+
+
 class BeamElementProperties:
     def __init__(
         self,
