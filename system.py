@@ -1,7 +1,7 @@
 import numpy as np
 from typing import Callable
 import interpolation as intp
-import errors
+from errors import ConvergenceError
 
 
 class System:
@@ -264,7 +264,7 @@ class System:
     def __time_loop(self):
         # Start of time loop
         for n in range(self.max_number_of_time_steps):
-            if self.printing: print("Step", n, "\n\tTime", self.__time)
+            if self.printing: print("Time step: ", n+1, " (time ", self.__time, " --> ", self.__time + self.time_step, ")", sep='')
 
             self.__time += self.time_step
             self.__displacement[0] = self.__displacement[2]
