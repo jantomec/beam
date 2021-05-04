@@ -1,10 +1,6 @@
 import numpy as np
-from typing import Callable
 import interpolation as intp
-
-
-class System:
-    def __init__(self, coordinates):
+import errors
 
 
 class BeamElementProperties:

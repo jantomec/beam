@@ -3,7 +3,8 @@ import structures as struct
 import mathematics as math
 import projection as proj
 import interpolation as intp
-from errors import ConvergenceError
+import contact
+from errors import ConvergenceError, MeshError, ProjectionError
 
 
 class Element:
@@ -11,13 +12,11 @@ class Element:
         self,
         nodes,
         local_dof,
-        n_nodes_in_mesh,
-        beam=None
+        n_nodes_in_mesh
     ):
         self.nodes = np.array(nodes)
         self.n_nodes = len(self.nodes)
         self.dof = np.array(local_dof)
-        self.beam = beam
         
         n_all = len(local_dof)
         n_loc = np.sum(local_dof)
@@ -57,12 +56,7 @@ class SimoBeam(Element):
         # nodes
         dof = np.zeros(mesh_dof_per_node, dtype=np.bool)
         dof[:6] = True
-        super().__init__(
-            nodes,
-            dof,
-            n_nodes_in_mesh,
-            beam
-        )
+        super().__init__(nodes, dof, n_nodes_in_mesh)
 
         # --------------------------------------------------------------
         # defualt values
@@ -221,7 +215,8 @@ class SimoBeam(Element):
                     self.int_pts[0].rot[2,:,g]
                 )
                 arm2 = math.rotate(q_inv, ar2)
-
+                # rotation_change = arm2 - arm1  # original Newmark method; artificial velocity
+                rotation_change = arm2  # Jelenić suggestion; true velocity
                 self.int_pts[0].w[:,g] += (
                     gamma / (dt*beta) * (arm2 - arm1)
                 )
@@ -465,23 +460,28 @@ class MortarContact(Element):
     def __init__(
         self,
         parent_element: int,
-        n_integration_points: int
+        n_integration_points: int,
+        possible_contact_partners: list,
+        consider_jacobian: bool,
+        dual_basis_functions: bool
     ):
         # --------------------------------------------------------------
         # nodes
         self.parent = parent_element
-        dof = np.zeros_like(self.parent.dof)
-        dof[6] = True
-        
-        self.dof = dof
+        self.dof = np.zeros_like(self.parent.dof)
+        self.dof[6] = True
+        self.possible_contact_partners = possible_contact_partners
 
         # Lagrange multiplier interpolation
-        # self.Nlam = [
-        #     lambda x: intp.lagrange_polynomial(self.parent.n_nodes-1, x)
-        # ]
-        self.Nlam = [
-            lambda x: intp.dual_basis_function(self.parent.n_nodes-1, x)
-        ]
+        if dual_basis_functions == True:
+            self.Nlam = [
+                lambda x: intp.dual_basis_function(self.parent.n_nodes-1, x)
+            ]
+        else:
+            self.Nlam = [
+                lambda x: intp.lagrange_polynomial(self.parent.n_nodes-1, x)
+            ]
+        
         
         lg = np.polynomial.legendre.leggauss(n_integration_points)
         self.int_pts = [struct.IntegrationPoint(
@@ -503,7 +503,8 @@ class MortarContact(Element):
                 d[i] = np.linalg.norm(x[:,g] - X[:,mortar_nodes[i]])
             self.int_pts[g].cmn = mortar_nodes[np.argmin(d)]
 
-    def find_partner(self, X, mortar_nodes, mortar_elements):
+    def find_partner(self, X):
+        mortar_nodes = contact.collect_nodes(self.possible_contact_partners)
         self.closest_mortar_node(X, mortar_nodes)
         
         # integration point positions
@@ -512,7 +513,7 @@ class MortarContact(Element):
         for g in range(len(self.int_pts)):
             # Find connected elements to node
             candidate_elements = set()
-            for e in mortar_elements:
+            for e in self.possible_contact_partners:
                 if self.int_pts[g].cmn in e.nodes:
                     candidate_elements.add(e)
             
@@ -527,11 +528,9 @@ class MortarContact(Element):
                 )
                 distance_all.append(distance)
             if len(candidate_elements) > 2:
-                print("Currently no forked beams are supported. The problem lays in finding the closest point algorithm.")
-                raise Exception()
+                raise MeshError("Currently no forked beams are supported. The problem lays in finding the closest point algorithm.")
             if len(candidate_elements) == 0:
-                print("Projection error.")
-                raise Exception()
+                raise Exception("Unknown error when searching for partner - investigate.")
             gaps = [np.linalg.norm(di[1:]) for di in distance_all]
             if len(candidate_elements) == 2:
                 if -1 <= distance_all[0][0] and distance_all[0][0] <= 1 and -1 <= distance_all[1][0] and distance_all[1][0] <= 1:
@@ -547,22 +546,31 @@ class MortarContact(Element):
                 selected = 0
             self.int_pts[g].partner = candidate_elements[selected]
 
-    def find_gap(self, X):
+    def find_gap(self, X, vel):
+        # X ... current iteration position
+        # XTm1 ... last converged time step position
         r1 = self.parent.prop.cr
         for g in range(len(self.int_pts)):
             partner = self.int_pts[g].partner
             N1 = self.N_displacement[:,g]
             x1 = X[:,self.parent.nodes] @ N1
+            vel1 = vel[:,self.parent.nodes] @ N1
             v = proj.nearest_point_projection(
                 partner.Ndis[0],
                 partner.Ndis[1],
                 partner.Ndis[2],
                 X[:,partner.nodes], x1
             )
-            r2 = self.int_pts[g].partner.prop.cr
-            self.int_pts[g].gap = np.linalg.norm(v[1:]) - r1 - r2
             self.int_pts[g].s2 = v[0]
+            r2 = self.int_pts[g].partner.prop.cr
+            N2 = partner.Ndis[1](self.int_pts[g].s2)
+            vel2 = vel[:,partner.nodes] @ N2
+            relative_velocity = vel2 - vel1
             self.int_pts[g].n2 = math.normalized(v[1:])
+            if self.int_pts[g].n2 @ relative_velocity < 0:
+                self.int_pts[g].n2 *= -1
+
+            self.int_pts[g].gap = v[1:] @ self.int_pts[g].n2 - r1 - r2
         
     def gap_condition_contribution(self, p, X):
         # This function computes elements contribution to node p weak

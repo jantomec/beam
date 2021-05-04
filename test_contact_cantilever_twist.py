@@ -142,7 +142,7 @@ def cantilever_contact(printing=True):
     final_time = 6.
     
     # Select solver parameters
-    max_number_of_time_steps = 300 #  100
+    max_number_of_time_steps = 300
     max_number_of_newton_iterations = 60
     max_number_of_contact_iterations = 10
     tolerance = 1e-8
@@ -185,10 +185,7 @@ def cantilever_contact(printing=True):
         # Contact search
         active_nodes_changed = True
         for b1 in beam_1:
-            try:
-                b1.child.find_partner(coordinates+displacement[2], mortar_nodes, mortar_elements)
-            except:
-                return finish_computation(beam_1, history, coordinates, displacement[2])
+            b1.child.find_partner(coordinates+displacement[2], mortar_nodes, mortar_elements)
 
         contact_loop_counter = 0
         while active_nodes_changed:
@@ -258,13 +255,15 @@ def cantilever_contact(printing=True):
                     )
                     acceleration[2] = a_new
                 else:
+                    # displacement_change = x[:3]  # original Newmark method; artificial velocity
+                    displacement_change = displacement[2] - displacement[0]  # Jelenić suggestion; true velocity
                     velocity[2] += (
                         gamma / 
-                        (time_step[1] * beta) * x[:3]
+                        (time_step[1] * beta) * displacement_change
                     )
                     acceleration[2] += (
                         1 / 
-                        (time_step[1]**2 * beta) * x[:3]
+                        (time_step[1]**2 * beta) * displacement_change
                     )
                 for e in range(len(elements)):
                     if type(elements[e]) == el.SimoBeam:
@@ -312,7 +311,9 @@ def cantilever_contact(printing=True):
                 # Contact forces
                 for b1 in beam_1:
                     try:
-                        b1.child.find_gap(coordinates+displacement[2])
+                        print('begin')
+                        b1.child.find_gap(coordinates+displacement[2], velocity[2])
+                        print('gap', b1.child.int_pts[0].gap)
                     except:
                         print("Algorithm was distrupted by error in gap computation.")
                         return finish_computation(beam_1, history, coordinates, displacement[2])
