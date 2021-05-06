@@ -35,10 +35,10 @@ class BeamElementProperties:
         self.C[4,4] = self.E * self.I1
         self.C[5,5] = self.E * self.I2
         self.Arho = area * density
-        self.I = np.zeros(shape=(3,3))
-        self.I[0,0] = self.rho * (self.I1 + self.I2)
-        self.I[1,1] = self.rho * self.I1
-        self.I[2,2] = self.rho * self.I2
+        self.Irho = np.zeros(shape=(3,3))
+        self.Irho[0,0] = self.rho * (self.I1 + self.I2)
+        self.Irho[1,1] = self.rho * self.I1
+        self.Irho[2,2] = self.rho * self.I2
 
 
 class BeamIntegrationPoint:
@@ -95,11 +95,11 @@ class BeamIntegrationPoint:
             self.dN_rotation = rotation_interpolation[1](self.loc)
 
         self.rot = np.empty(shape=(3,4,self.n_pts))
-        self.om = np.empty(shape=(3,self.n_pts))
-        self.w = np.empty(shape=(3,self.n_pts))
-        self.a = np.empty(shape=(3,self.n_pts))
-        self.q = np.empty(shape=(3,self.n_pts))
-        self.f = np.zeros(shape=(6,self.n_pts))
+        self.om = np.empty(shape=(3,3,self.n_pts))
+        self.w = np.empty(shape=(3,3,self.n_pts))
+        self.a = np.empty(shape=(3,3,self.n_pts))
+        self.q = np.empty(shape=(3,6,self.n_pts))
+        self.f = np.zeros(shape=(3,6,self.n_pts))
 
 
 class IntegrationPoint:

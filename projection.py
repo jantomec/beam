@@ -11,7 +11,7 @@ def nearest_point_projection(
     X: np.ndarray,
     P: np.ndarray,
     s0: float = 0.0,
-    TOLER: float = 1e-12,
+    TOLER: float = 1e-9,
     MAXITER: int = 20
 ) -> np.ndarray:
 

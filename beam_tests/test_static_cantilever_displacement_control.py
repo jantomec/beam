@@ -1,11 +1,13 @@
 import functools
+import sys  
+sys.path.insert(0, 'C:/Users/jan.tomec/Documents/THREAD/beam')
 import numpy as np
 from system import System
 import mesh
 import postprocessing as postproc
 
 
-def cantilever(printing=True):
+def case():
     """
     In this example, a beam fixed on both ends while the right end is being moved upward.
     No contact, static analysis.
@@ -28,7 +30,6 @@ def cantilever(printing=True):
     system.final_time = 1.0
     system.solver_type = 'static'
     system.contact_detection=False
-    system.printing = printing
     system.convergence_test_type = 'DSP'
 
     def user_displacement_load(self):
@@ -42,14 +43,13 @@ def cantilever(printing=True):
 
     system.displacement_load = functools.partial(user_displacement_load, system)
     
-    system.postprocessor = functools.partial(postproc.line_plot((-0.2,1.2), (-0.7,0.7), (-0.7,0.7)), system)
-
     return system
 
 def main():
-    system = cantilever()
+    system = case()
     system.solve()
-    system.postprocessor()
+    for i in range(len(system.time)):
+        postproc.line_plot(system, (-0.2,1.2), (-0.7,0.7), (-0.7,0.7), i)
 
 if __name__ == "__main__":
     main()
