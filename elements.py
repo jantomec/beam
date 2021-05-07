@@ -605,7 +605,6 @@ class MortarContact(Element):
             )
             self.int_pts[g].s2 = v[0]
             r2 = self.int_pts[g].partner.prop.cr
-            N2 = partner.Ndis[1](self.int_pts[g].s2)
             try:
                 old_n2 = self.int_pts[g].n2
                 sign = np.sign(old_n2 @ math.normalized(v[1:]))
@@ -672,17 +671,17 @@ class MortarContact(Element):
                             Kl = np.zeros((n_dof, n_dof))
                             
                             if b1 == 0 and b2 == 0:
-                                Kl[:3,:3] = N1[i] * G1 * N1[j]
-                                Kl[:3,6] = -N1[i] * jac * n2 * Phi1[j]
-                                Kl[6,:3] = -Phi1[i] * jac * n2 * N1[j]
+                                Kl[:3,:3] = -N1[i] * G1 * N1[j]
+                                Kl[:3,6] = N1[i] * jac * n2 * Phi1[j]
+                                Kl[6,:3] = Phi1[i] * jac * n2 * N1[j]
                             elif b1 == 0 and b2 == 1:
-                                Kl[:3,:3] = -N1[i] * G1 * N2[j] + N1[i] * G2 * dN2[j]
-                                Kl[6,:3] = Phi1[i] * jac * n2 * N2[j]
+                                Kl[:3,:3] = N1[i] * G1 * N2[j] - N1[i] * G2 * dN2[j]
+                                Kl[6,:3] = -Phi1[i] * jac * n2 * N2[j]
                             elif b1 == 1 and b2 == 0:
-                                Kl[:3,:3] = -N2[i] * G1 * N1[j] + dN2[i] * G2.T * N1[j]
-                                Kl[:3,6] = N2[i] * jac * n2 * Phi1[j]
+                                Kl[:3,:3] = N2[i] * G1 * N1[j] - dN2[i] * G2.T * N1[j]
+                                Kl[:3,6] = -N2[i] * jac * n2 * Phi1[j]
                             elif b1 == 1 and b2 == 1:
-                                Kl[:3,:3] = N2[i] * G1 * N2[j] - N2[i] * G2 * dN2[j] - dN2[i] * G2.T * N2[j] + dN2[i] * G3 * dN2[j]
+                                Kl[:3,:3] = -N2[i] * G1 * N2[j] + N2[i] * G2 * dN2[j] + dN2[i] * G2.T * N2[j] - dN2[i] * G3 * dN2[j]
                             Kg[np.ix_(row_dof, col_dof)] += self.int_pts[g].wgt * Kl
         return Kg
 
@@ -705,12 +704,12 @@ class MortarContact(Element):
                 for (i, I) in enumerate(nodes[b1]):
                     Rl = np.zeros(n_dof)
                     row_dof = list(range(n_dof*I,n_dof*(I+1)))
-                        
                     if b1 == 0:
-                        Rl[:3] = -N1[i] * jac * lam * n2
+                        Rl[:3] = N1[i] * jac * lam * n2
+                        Rl[6] = Phi1[i] * jac * gN
                     elif b1 == 1:
-                        Rl[:3] = N2[i] * jac * lam * n2
-                    Rg[row_dof] += self.int_pts[g].wgt * Rl
+                        Rl[:3] = -N2[i] * jac * lam * n2
+                    Rg[row_dof] = self.int_pts[g].wgt * Rl
         return Rg
     
 def Xi_mat(

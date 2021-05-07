@@ -89,12 +89,11 @@ class System:
         n_nodes = self.get_number_of_nodes()
         n_ele = self.get_number_of_elements()
         
-        x = self.unknowns
-
         # Apply displacement load
+        x = self.unknowns
         x[:] = 0.0
         x[:6] = self.displacement_load()
-
+        
         # Perform Newton-Raphson iteration method to find new balance
         for i in range(self.max_number_of_newton_iterations):
             # Initiate new iteration
@@ -103,6 +102,8 @@ class System:
             self.__acceleration[1] = self.__acceleration[2]
             self.__lagrange[1] = self.__lagrange[2]
 
+            # In iteration 0 discover the current state of the system,
+            #  therefore skip the computation of displacements.
             if i > 0:
                 # Assembly of tangent matrix from all elements.
                 tangent = np.zeros((n_dof, n_dof))
@@ -124,7 +125,7 @@ class System:
                     # Contact contribution
                     try:
                         contact_element = ele.child
-                        tangent -= c[0] * contact_element.contact_tangent(self.coordinates+self.__displacement[2], self.__lagrange[2], n_nodes)
+                        tangent += c[0] * contact_element.contact_tangent(self.coordinates+self.__displacement[2], self.__lagrange[2], n_nodes)
                     except AttributeError:
                         pass
                     
@@ -150,14 +151,8 @@ class System:
             else:
 
                 iterative_displacement_change = x[:3]
-                self.__velocity[2] += (
-                    self.gamma / 
-                    (self.time_step * self.beta) * iterative_displacement_change
-                )
-                self.__acceleration[2] += (
-                    1 / 
-                    (self.time_step**2 * self.beta) * iterative_displacement_change
-                )
+                self.__velocity[2] += self.gamma / (self.time_step * self.beta) * iterative_displacement_change
+                self.__acceleration[2] += 1 / (self.time_step**2 * self.beta) * iterative_displacement_change
             # Update integration point beam values
             for ele in self.elements:
                 X = self.coordinates[:,ele.nodes] + self.__displacement[2][:,ele.nodes]
@@ -166,6 +161,7 @@ class System:
             # Update nodal contact values
             self.__lagrange[2] += x[6]
             
+            # DEFORMATION PLOT
             # self.displacement.append(self.__displacement[2].copy())
             # self.velocity.append(self.__velocity[2].copy())
             # self.acceleration.append(self.__acceleration[2].copy())
@@ -180,9 +176,12 @@ class System:
                     contact_element.find_gap(self.coordinates+self.__displacement[2])
                 except AttributeError:
                     pass
+            
+            # GAP PLOT
             # gf = self.gap_function()
             # plt.plot(gf[:,0], gf[:,1])
             # plt.show()
+            
             # Displacement convergence
             if self.convergence_test_type == "DSP" and np.linalg.norm(x) <= self.tolerance:
                 if self.printing: print("Time step converged within", i+1, "iterations.")
@@ -194,7 +193,7 @@ class System:
             for ele in self.elements:
                 # Internal forces
                 X = self.coordinates[:,ele.nodes] + self.__displacement[2][:,ele.nodes]
-                R = c[0] * ele.stiffness_residual(X)
+                R = ele.stiffness_residual(X)
                 if c[2] != 0:
                     R += ele.mass_residual(self.__acceleration[2][:,ele.nodes])
                 A = ele.assemb
@@ -204,7 +203,7 @@ class System:
                 try:
                     contact_element = ele.child
                     contact_forces = contact_element.contact_residual(self.coordinates+self.__displacement[2], self.__lagrange[2], n_nodes).reshape((n_ndof, n_nodes), order='F')
-                    x += contact_forces
+                    x -= contact_forces
                 except AttributeError:
                     pass
                 
@@ -221,9 +220,6 @@ class System:
 
     def __contact_loop(self):
         n_nodes = self.coordinates.shape[1]
-        x = self.unknowns
-        self.__degrees_of_freedom = self.__degrees_of_freedom
-
         active_nodes_changed = True
         for ele in self.elements:
             try:
@@ -235,18 +231,6 @@ class System:
         contact_loop_counter = 0
         while active_nodes_changed:
             active_nodes_changed = False
-            self.__displacement[2] = self.__displacement[0]
-            self.__velocity[2] = self.__velocity[0]
-            self.__acceleration[2] = self.__acceleration[0]
-            self.__lagrange[2] = self.__lagrange[0]
-            for ele in self.elements:
-                for i in range(len(ele.int_pts)):
-                    ele.int_pts[i].rot[0] = ele.int_pts[i].rot[2]
-                ele.int_pts[0].w[0] = ele.int_pts[0].w[2]
-                ele.int_pts[0].a[0] = ele.int_pts[0].a[2]
-                ele.int_pts[1].om[0] = ele.int_pts[1].om[2]
-                ele.int_pts[1].q[0] = ele.int_pts[1].q[2]
-                ele.int_pts[1].f[0] = ele.int_pts[1].f[2]
             
             # Newton-Raphson method converged to a new solution
             self.__newton_loop()
@@ -255,7 +239,7 @@ class System:
             # Check contact conditions
             # Inactive nodes
             for p in range(n_nodes):
-                if self.__degrees_of_freedom[1][6,p] == False:
+                if self.__degrees_of_freedom[1][6,p] == False and np.all(self.__degrees_of_freedom[1][:3,p] != np.zeros(3, dtype=bool)):
                     gap_condition_for_node_p = 0.0
                     for ele in self.elements:
                         try:
@@ -287,6 +271,7 @@ class System:
             self.__velocity[0] = self.__velocity[2]
             self.__acceleration[0] = self.__acceleration[2]
             self.__lagrange[0] = self.__lagrange[2]
+
             if self.contact_detection:
                 self.__contact_loop()
             else:
