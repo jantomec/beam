@@ -203,7 +203,10 @@ class System:
                     pass
                 
             # Residual convergence
-            res_norm = np.linalg.norm(x[self.__degrees_of_freedom[1]])
+            if i == 0:
+                res_norm = np.linalg.norm(x[self.__degrees_of_freedom[1]])
+            else:
+                res_norm = np.linalg.norm(x[:6][self.__degrees_of_freedom[1][:6]])
             if self.printing and self.print_residual: print("Residual", res_norm)
             if self.convergence_test_type == "RES" and res_norm <= self.tolerance:
                 # Newton-Raphson algorithm converged to a new solution
