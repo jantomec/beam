@@ -46,6 +46,7 @@ def line_plot(system, xlim, ylim, zlim, time_step):
     ax.set_ylim(ylim)
     ax.set_zlim(zlim)
     plt.show()
+    # plt.savefig('image'+str(time_step)+'.png')
 
 def gap_plot(system):
     return

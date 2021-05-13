@@ -35,12 +35,19 @@ def __ele_nodes(ele_id, n_nodes_per_ele):
         n_nodes_per_ele*ele_id+j for j in range(n_nodes_per_ele+1)
     ], dtype=int)
 
-def line_mesh(A, B, n_elements, order, material, reference_vector, starting_node_index=0, possible_contact_partners=[], consider_contact_jacobian=False, dual_basis_functions=True):
+def line_mesh(A, B, n_elements, order, material, reference_vector, starting_node_index=0,
+              possible_contact_partners=[], consider_contact_jacobian=False,
+              dual_basis_functions=True, n_contact_integration_points=None):
     """
     Create line mesh from coordinate A to B.
     """
     n_ele = n_elements
     n_nod = order * n_ele + 1
+    if n_contact_integration_points is None:
+        n_int = n_nod
+    else:
+        n_int = n_contact_integration_points
+    
     coordinates = np.zeros((3,n_nod))
     for i in range(3):
         coordinates[i,:] = np.linspace(A[i], B[i], n_nod)
@@ -64,7 +71,7 @@ def line_mesh(A, B, n_elements, order, material, reference_vector, starting_node
         if len(possible_contact_partners) != 0:
             element.child = elmt.MortarContact(
                 parent_element=element,
-                n_integration_points=n_nod,
+                n_integration_points=n_int,
                 possible_contact_partners=possible_contact_partners,
                 dual_basis_functions=dual_basis_functions
             )

@@ -129,12 +129,19 @@ class System:
                     except AttributeError:
                         pass
                     
-                # Solve system of equations.
-                mask = ~self.__degrees_of_freedom[1]
-                tangent[mask.flatten(order='F')] = np.identity(n_dof)[mask.flatten(order='F')]
-                tangent[:,mask.flatten(order='F')] = np.identity(n_dof)[:,mask.flatten(order='F')]
-                x[mask] = np.zeros(shape=(n_ndof,n_nodes))[mask]
-                x = np.linalg.solve(tangent, x.flatten(order='F')).reshape((n_ndof,n_nodes), order='F')
+                # Solve system of equations by replacing values.
+                # mask = ~self.__degrees_of_freedom[1]
+                # tangent[mask.flatten(order='F')] = np.identity(n_dof)[mask.flatten(order='F')]
+                # tangent[:,mask.flatten(order='F')] = np.identity(n_dof)[:,mask.flatten(order='F')]
+                # x[mask] = np.zeros(shape=(n_ndof,n_nodes))[mask]
+                # x = np.linalg.solve(tangent, x.flatten(order='F')).reshape((n_ndof,n_nodes), order='F')
+                
+                # Solve system of equations by condensing inactive dofs.
+                mask = self.__degrees_of_freedom[1].flatten(order='F')
+                x_flat = x.flatten(order='F')
+                x_flat[mask] = np.linalg.solve(tangent[mask][:,mask], x_flat[mask])
+                x_flat[~mask] = 0.0
+                x = x_flat.reshape((n_ndof,n_nodes), order='F')
             
             # Update nodal beam values
             self.__displacement[2] += x[:3]
@@ -153,6 +160,7 @@ class System:
                 iterative_displacement_change = x[:3]
                 self.__velocity[2] += self.gamma / (self.time_step * self.beta) * iterative_displacement_change
                 self.__acceleration[2] += 1 / (self.time_step**2 * self.beta) * iterative_displacement_change
+            
             # Update integration point beam values
             for ele in self.elements:
                 X = self.coordinates[:,ele.nodes] + self.__displacement[2][:,ele.nodes]
@@ -161,14 +169,6 @@ class System:
             # Update nodal contact values
             self.__lagrange[2] += x[6]
             
-            # DEFORMATION PLOT
-            # self.displacement.append(self.__displacement[2].copy())
-            # self.velocity.append(self.__velocity[2].copy())
-            # self.acceleration.append(self.__acceleration[2].copy())
-            # self.lagrange.append(self.__lagrange[2].copy())
-            # self.time.append(self.current_time)
-            # postprocessing.line_plot(self, (-2,52), (-7,7), (-7,7), -1)
-
             # Update integration point contact values
             for ele in self.elements:
                 try:
@@ -176,11 +176,6 @@ class System:
                     contact_element.find_gap(self.coordinates+self.__displacement[2])
                 except AttributeError:
                     pass
-            
-            # GAP PLOT
-            # gf = self.gap_function()
-            # plt.plot(gf[:,0], gf[:,1])
-            # plt.show()
             
             # Displacement convergence
             if self.convergence_test_type == "DSP" and np.linalg.norm(x) <= self.tolerance:

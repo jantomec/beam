@@ -611,7 +611,6 @@ class MortarContact(Element):
                 self.int_pts[g].n2 = sign * math.normalized(v[1:])
             except AttributeError:
                 self.int_pts[g].n2 = math.normalized(v[1:])
-
             self.int_pts[g].gap = v[1:] @ self.int_pts[g].n2 - r1 - r2
         
     def gap_condition_contribution(self, p, X):
@@ -647,7 +646,6 @@ class MortarContact(Element):
             v = v_abs * n2
             Phi1 = self.N_lagrange[:,g]
             N1 = self.N_displacement[:,g]
-            dN1 = self.dN_displacement[:,g]
             lam = Lam[self.parent.nodes] @ Phi1
             N2 = partner.Ndis[0](s2)
             dN2 = partner.Ndis[1](s2)
@@ -709,7 +707,7 @@ class MortarContact(Element):
                         Rl[6] = Phi1[i] * jac * gN
                     elif b1 == 1:
                         Rl[:3] = -N2[i] * jac * lam * n2
-                    Rg[row_dof] = self.int_pts[g].wgt * Rl
+                    Rg[row_dof] += self.int_pts[g].wgt * Rl
         return Rg
     
 def Xi_mat(

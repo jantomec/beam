@@ -15,18 +15,19 @@ def case():
     
     mat = {
         'area':np.pi,
-        'elastic_modulus':2.1e5,
-        'shear_modulus':8.0e4,
-        'inertia_primary':0.785398,
-        'inertia_secondary':0.785398,
+        'elastic_modulus':100,
+        'shear_modulus':10,
+        'inertia_primary':100.785398,
+        'inertia_secondary':100.785398,
         'inertia_torsion':1.5708,
-        'density':8.0e-7,
-        'contact_radius':5
+        'density':1,
+        'contact_radius':2
     }
     
     (coordinates1, elements1) = mesh.line_mesh(A=(0,0,6), B=(50,0,6), n_elements=1, order=1, material=mat, reference_vector=(0,0,1))
     (coordinates2, elements2) = mesh.line_mesh(A=(0,0,-6), B=(50,0,-6), n_elements=1, order=1, material=mat, reference_vector=(0,0,1),
-                                               starting_node_index=coordinates1.shape[1], possible_contact_partners=elements1, dual_basis_functions=False)
+                                               starting_node_index=coordinates1.shape[1], possible_contact_partners=elements1,
+                                               dual_basis_functions=True, n_contact_integration_points=10)
     
     coordinates = np.hstack((coordinates1, coordinates2))
     elements = elements1 + elements2
@@ -36,12 +37,12 @@ def case():
     system.solver_type = 'static'
     system.contact_detection = True
     system.print_residual = True
-    system.max_number_of_newton_iterations = 25
+    system.max_number_of_newton_iterations = 60
     
     def user_force_load(self):
         n_nodes = self.get_number_of_nodes()
         Q = np.zeros((6, n_nodes))
-        Q[2,-1] = 55 * self.current_time / self.final_time
+        Q[2,-1] = 8.0 * self.current_time / self.final_time
         return Q
     
     system.degrees_of_freedom[-1][:6,:coordinates1.shape[1]] = False  # [current time, dof 0 through 5, first node of the first beam]
