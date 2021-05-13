@@ -1,6 +1,20 @@
-import functools
+import os
 import sys
-sys.path.insert(0, 'C:/Users/jan.tomec/Documents/THREAD/beam')
+
+cwd = os.getcwd()
+folder = os.path.basename(cwd)
+while folder != "beam":
+    print("Hello")
+    print(cwd, os.path.dirname(cwd))
+    cwd = os.path.dirname(cwd)
+    folder = os.path.basename(cwd)
+    if len(cwd) == 0:
+        print("Root directory was not found. Try inserting the path manually with 'sys.path.insert(0, absolute_path_to_root)'")
+        sys.exit()
+print("Root directory:", cwd)
+sys.path.insert(0, cwd)
+
+import functools
 import numpy as np
 from system import System
 import mesh
