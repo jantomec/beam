@@ -4,8 +4,6 @@ import sys
 cwd = os.getcwd()
 folder = os.path.basename(cwd)
 while folder != "beam":
-    print("Hello")
-    print(cwd, os.path.dirname(cwd))
     cwd = os.path.dirname(cwd)
     folder = os.path.basename(cwd)
     if len(cwd) == 0:
