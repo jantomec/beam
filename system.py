@@ -136,7 +136,7 @@ class System:
                 # x[mask] = np.zeros(shape=(n_ndof,n_nodes))[mask]
                 # x = np.linalg.solve(tangent, x.flatten(order='F')).reshape((n_ndof,n_nodes), order='F')
                 
-                # Solve system of equations by condensing inactive dofs.
+                # Solve system of equations by condensing inactive dofs
                 mask = self.__degrees_of_freedom[1].flatten(order='F')
                 x_flat = x.flatten(order='F')
                 x_flat[mask] = np.linalg.solve(tangent[mask][:,mask], x_flat[mask])
@@ -178,9 +178,11 @@ class System:
                     pass
             
             # Displacement convergence
-            if self.convergence_test_type == "DSP" and np.linalg.norm(x) <= self.tolerance:
-                if self.printing: print("Time step converged within", i+1, "iterations.")
-                break
+            if self.convergence_test_type == "DSP" and i > 0:
+                if self.printing and self.print_residual: print("Displacement", np.linalg.norm(x[:3]))
+                if np.linalg.norm(x[:3]) <= self.tolerance:
+                    if self.printing: print("Time step converged within", i+1, "iterations.")
+                    break
             
             # External forces
             x[:6] = self.force_load()
@@ -207,11 +209,12 @@ class System:
                 res_norm = np.linalg.norm(x[self.__degrees_of_freedom[1]])
             else:
                 res_norm = np.linalg.norm(x[:6][self.__degrees_of_freedom[1][:6]])
-            if self.printing and self.print_residual: print("Residual", res_norm)
-            if self.convergence_test_type == "RES" and res_norm <= self.tolerance:
-                # Newton-Raphson algorithm converged to a new solution
-                if self.printing: print("\tTime step converged within", i+1, "iterations.\n")
-                break
+            if self.convergence_test_type == "RES":
+                if self.printing and self.print_residual: print("Residual", res_norm)
+                if res_norm <= self.tolerance:
+                    # Newton-Raphson algorithm converged to a new solution
+                    if self.printing: print("\tTime step converged within", i+1, "iterations.\n")
+                    break
 
         else:
             raise ConvergenceError('Newton-Raphson: Maximum number of iterations reached without convergence.')

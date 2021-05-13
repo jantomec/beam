@@ -21,7 +21,7 @@ import postprocessing as postproc
 
 def case():
     """
-    In this example, one cantilever beam is bent towards another.
+    In this example, one cantilever beam is bent towards another. Only one linear element for each beam.
     Contact, static analysis.
     """
     

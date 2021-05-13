@@ -33,7 +33,7 @@ def case():
         'inertia_secondary':0.785398,
         'inertia_torsion':1.5708,
         'density':8.0e-7,
-        'contact_radius':0.5
+        'contact_radius':1.0
     }
     
     (coordinates1, elements1) = mesh.line_mesh(A=(0,0,2), B=(50,0,2), n_elements=4, order=1, material=mat, reference_vector=(0,0,1))
@@ -46,13 +46,14 @@ def case():
     system.time_step = 1.0
     system.final_time = 1.0
     system.solver_type = 'static'
+    system.convergence_test_type = 'RES'
     system.contact_detection = True
     system.print_residual = True
     
     def user_force_load(self):
         n_nodes = self.get_number_of_nodes()
         Q = np.zeros((6, n_nodes))
-        Q[2,coordinates1.shape[1]-2] = -25 * self.current_time / self.final_time
+        Q[2,coordinates1.shape[1]-2] = -15 * self.current_time / self.final_time
         return Q
     
     system.degrees_of_freedom[-1][:6,0] = False  # [current time, dof 0 through 5, first node of the first beam]
