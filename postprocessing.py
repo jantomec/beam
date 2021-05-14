@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import contact
 
-def line_plot(system, xlim, ylim, zlim, time_step):
+def line_plot(system, xlim, ylim, zlim, time_step, include_initial_state=True, savefig=False):
     i = time_step
     beams_id = contact.identify_entities(system.elements)
     beams = []
@@ -26,27 +26,30 @@ def line_plot(system, xlim, ylim, zlim, time_step):
         x0 = system.coordinates[0][nodes]
         y0 = system.coordinates[1][nodes]
         z0 = system.coordinates[2][nodes]
-        ax.plot3D(x0, y0, z0, '.', color=color_map(b))
+        if include_initial_state:
+            ax.plot3D(x0, y0, z0, '.', color=color_map(b))
 
         u0 = x0 + system.displacement[i][0][nodes]
         v0 = y0 + system.displacement[i][1][nodes]
         w0 = z0 + system.displacement[i][2][nodes]
-        ax.plot3D(x0, y0, z0, '.', color=color_map(b))
         ax.plot3D(u0, v0, w0, '.', color=color_map(b))
 
         for ele in beam:
             N = ele.Ndis[0](np.linspace(-1,1,n_plot_points_for_each_element))
             x = system.coordinates[:,ele.nodes] @ N
-            ax.plot3D(x[0], x[1], x[2], '--', color=color_map(b), alpha=0.5)
+            if include_initial_state:
+                ax.plot3D(x[0], x[1], x[2], '--', color=color_map(b), alpha=0.5)
             u = x + system.displacement[i][:,ele.nodes] @ N
             ax.plot3D(u[0], u[1], u[2], '-', color=color_map(b), alpha=0.5)
             # ax.plot3D(u[0], u[1], u[2], '-', linewidth=6.0, color=color_map(b), alpha=0.5)
-        
+    
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
     ax.set_zlim(zlim)
-    plt.show()
-    # plt.savefig('image'+str(time_step)+'.png')
+    if savefig:
+        plt.savefig('image'+str(time_step)+'.png')
+    else:
+        plt.show()
 
 def gap_plot(system):
     return
