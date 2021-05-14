@@ -130,14 +130,14 @@ class System:
                         pass
                     
                 # Solve system of equations by replacing values.
-                # mask = ~self.__degrees_of_freedom[1]
+                # mask = ~self.__degrees_of_freedom[2]
                 # tangent[mask.flatten(order='F')] = np.identity(n_dof)[mask.flatten(order='F')]
                 # tangent[:,mask.flatten(order='F')] = np.identity(n_dof)[:,mask.flatten(order='F')]
                 # x[mask] = np.zeros(shape=(n_ndof,n_nodes))[mask]
                 # x = np.linalg.solve(tangent, x.flatten(order='F')).reshape((n_ndof,n_nodes), order='F')
                 
                 # Solve system of equations by condensing inactive dofs
-                mask = self.__degrees_of_freedom[1].flatten(order='F')
+                mask = self.__degrees_of_freedom[2].flatten(order='F')
                 x_flat = x.flatten(order='F')
                 # x_flat[mask] = np.linalg.solve(tangent[mask][:,mask], x_flat[mask])
                 x_flat[mask] = np.linalg.lstsq(tangent[mask][:,mask], x_flat[mask], rcond=None)[0]
@@ -207,9 +207,9 @@ class System:
                 
             # Residual convergence
             if i == 0:
-                res_norm = np.linalg.norm(x[self.__degrees_of_freedom[1]])
+                res_norm = np.linalg.norm(x[self.__degrees_of_freedom[2]])
             else:
-                res_norm = np.linalg.norm(x[:6][self.__degrees_of_freedom[1][:6]])
+                res_norm = np.linalg.norm(x[:6][self.__degrees_of_freedom[2][:6]])
             if self.convergence_test_type == "RES":
                 if self.printing and self.print_residual: print("Residual", res_norm)
                 if res_norm <= self.tolerance:
@@ -236,12 +236,12 @@ class System:
             
             # Newton-Raphson method converged to a new solution
             self.__newton_loop()
-            self.__degrees_of_freedom[0] = self.__degrees_of_freedom[1]
+            self.__degrees_of_freedom[1] = self.__degrees_of_freedom[2]
 
             # Check contact conditions
             # Inactive nodes
             for p in range(n_nodes):
-                if self.__degrees_of_freedom[1][6,p] == False and np.all(self.__degrees_of_freedom[1][:3,p] != np.zeros(3, dtype=bool)):
+                if self.__degrees_of_freedom[2][6,p] == False and np.all(self.__degrees_of_freedom[2][:3,p] != np.zeros(3, dtype=bool)):
                     gap_condition_for_node_p = 0.0
                     for ele in self.elements:
                         try:
@@ -251,12 +251,12 @@ class System:
                         except AttributeError:
                             continue
                     if gap_condition_for_node_p < 0:
-                        self.__degrees_of_freedom[1][6,p] = True
+                        self.__degrees_of_freedom[2][6,p] = True
                 else:
                     if self.__lagrange[2][p] > 0.0:
-                        self.__degrees_of_freedom[1][6,p] = False
+                        self.__degrees_of_freedom[2][6,p] = False
                         self.__lagrange[2][p] = 0.0
-            active_nodes_changed = np.any(self.__degrees_of_freedom[0][6] != self.__degrees_of_freedom[1][6])
+            active_nodes_changed = np.any(self.__degrees_of_freedom[1][6] != self.__degrees_of_freedom[2][6])
             
             if self.printing and active_nodes_changed: print("\tActive nodes have changed: repeat time step.\n")
             contact_loop_counter += 1
@@ -273,12 +273,41 @@ class System:
             self.__velocity[0] = self.__velocity[2]
             self.__acceleration[0] = self.__acceleration[2]
             self.__lagrange[0] = self.__lagrange[2]
-
-            if self.contact_detection:
-                self.__contact_loop()
-            else:
-                self.__newton_loop()
+            self.__degrees_of_freedom[0] = self.__degrees_of_freedom[2]
             
+            split_time_step_size_counter = 0
+            original_time_step = self.time_step
+            while True:
+                try:
+                    if self.contact_detection:
+                        self.__contact_loop()
+                    else:
+                        self.__newton_loop()
+                    break
+                except ConvergenceError:
+                    if self.printing: print('\n\tNo convergence, automatic time step split.')
+                    self.current_time -= self.time_step
+                    self.time_step = self.time_step / 2
+                    self.__displacement[2] = self.__displacement[0]
+                    self.__velocity[2] = self.__velocity[0]
+                    self.__acceleration[2] = self.__acceleration[0]
+                    self.__lagrange[2] = self.__lagrange[0]
+                    self.__degrees_of_freedom[2] = self.__degrees_of_freedom[0]
+                    for ele in self.elements:
+                        ele.int_pts[0].w[2] = ele.int_pts[0].w[0]
+                        ele.int_pts[0].a[2] = ele.int_pts[0].a[0]
+                        ele.int_pts[0].rot[2] = ele.int_pts[0].rot[0]
+                        ele.int_pts[1].om[2] = ele.int_pts[1].om[0]
+                        ele.int_pts[1].q[2] = ele.int_pts[1].q[0]
+                        ele.int_pts[1].f[2] = ele.int_pts[1].f[0]
+                        ele.int_pts[1].rot[2] = ele.int_pts[1].rot[0]
+                
+                split_time_step_size_counter += 1
+                if split_time_step_size_counter > 5:
+                    raise ConvergenceError('Splitting time step did not help')
+            
+            self.time_step = original_time_step
+
             self.displacement.append(self.__displacement[2].copy())
             self.velocity.append(self.__velocity[2].copy())
             self.acceleration.append(self.__acceleration[2].copy())
@@ -336,7 +365,7 @@ class System:
             if self.solver_type == 'dynamic':
                 print("We use", self.dynamic_solver_type + ".")
         
-        self.__degrees_of_freedom = np.array([self.degrees_of_freedom[-1]]*2)
+        self.__degrees_of_freedom = np.array([self.degrees_of_freedom[-1]]*3)
         self.__displacement = np.array([self.displacement[-1]]*3)
         self.__velocity = np.array([self.velocity[-1]]*3)
         self.__acceleration = np.array([self.acceleration[-1]]*3)
