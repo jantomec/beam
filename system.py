@@ -139,7 +139,8 @@ class System:
                 # Solve system of equations by condensing inactive dofs
                 mask = self.__degrees_of_freedom[1].flatten(order='F')
                 x_flat = x.flatten(order='F')
-                x_flat[mask] = np.linalg.solve(tangent[mask][:,mask], x_flat[mask])
+                # x_flat[mask] = np.linalg.solve(tangent[mask][:,mask], x_flat[mask])
+                x_flat[mask] = np.linalg.lstsq(tangent[mask][:,mask], x_flat[mask], rcond=None)[0]
                 x_flat[~mask] = 0.0
                 x = x_flat.reshape((n_ndof,n_nodes), order='F')
             
