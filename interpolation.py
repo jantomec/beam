@@ -191,5 +191,5 @@ def dual_basis_function(degree, eval_pts):
         for g in range(n_integration_points):
             L += wg[g] * np.outer(phi[:,g], phi[:,g])
             R[j] += wg[g] * phi[j,g]
-            a[j] = np.linalg.solve(L, R)
+        a[j] = np.linalg.solve(L, R)
     return a @ lagrange_polynomial(degree, eval_pts)
