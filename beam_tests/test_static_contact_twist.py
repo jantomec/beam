@@ -33,18 +33,20 @@ def case():
         'inertia_secondary':0.785398,
         'inertia_torsion':1.5708,
         'density':8.0e-7,
-        'contact_radius':1.0
+        'contact_radius':2.0
     }
     
-    (coordinates1, elements1) = mesh.line_mesh(A=(0,0,4), B=(500,0,4), n_elements=4, order=1, material=mat, reference_vector=(0,0,1), n_contact_integration_points=10)
-    (coordinates2, elements2) = mesh.line_mesh(A=(0,0,-4), B=(500,0,-4), n_elements=4, order=1, material=mat, reference_vector=(0,0,1),
-                                               starting_node_index=coordinates1.shape[1], possible_contact_partners=elements1)
+    (coordinates1, elements1) = mesh.line_mesh(A=(0,0,4), B=(500,0,4), n_elements=4, order=2, material=mat, reference_vector=(0,0,1), n_contact_integration_points=10)
+    (coordinates2, elements2) = mesh.line_mesh(A=(0,0,-4), B=(500,0,-4), n_elements=4, order=2, material=mat, reference_vector=(0,0,1),
+                                               starting_node_index=coordinates1.shape[1], possible_contact_partners=elements1, dual_basis_functions=False)
     
     coordinates = np.hstack((coordinates1, coordinates2))
     elements = elements1 + elements2
     system = System(coordinates, elements)
-    system.time_step = 0.1
-    system.final_time = 0.7
+    system.time_step = 0.2
+    system.max_number_of_time_steps = 500
+    system.max_number_of_contact_iterations = 4
+    system.final_time = 2.0
     system.solver_type = 'static'
     system.convergence_test_type = 'RES'
     system.contact_detection = True
@@ -75,10 +77,15 @@ def main():
     system = case()
     system.solve()
     
-    for i in range(len(system.time)):
-        L = system.coordinates[0,-1]
-        d = 10
-        postproc.line_plot(system, (-d,L+d), (-L/8-d,L/8+d), (-L/8-d,L/8+d), i)
+    #for i in range(0, len(system.time), 20):
+    #    L = system.coordinates[0,-1]
+    #    d = 10
+    #    postproc.line_plot(system, (-d,L+d), (-L/20-d,L/20+d), (-L/20-d,L/20+d), i, include_initial_state=False)
+
+    L = system.coordinates[0,-1]
+    d = 10
+    postproc.line_plot(system, (-d,L+d), (-L/20-d,L/20+d), (-L/20-d,L/20+d), -1, include_initial_state=False)
+
 
 if __name__ == "__main__":
     main()
