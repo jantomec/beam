@@ -15,15 +15,14 @@ sys.path.insert(0, cwd)
 
 import numpy as np
 import unittest
-from beam_tests import test_static_cantilever
-from beam_tests import test_static_cantilever_displacement_control
-from beam_tests import test_dynamic_frame
+from beam_tests import test_cantilever
+from beam_tests import test_frame
 
 class TestSimoElement(unittest.TestCase):
 
     def test_static_cantilever(self):
         correct = np.zeros(3)
-        cantilever = test_static_cantilever.case()
+        cantilever = test_cantilever.case1()
         cantilever.printing = False
         cantilever.solve()
         u = cantilever.coordinates[:,-1] + cantilever.displacement[-1][:,-1]
@@ -31,7 +30,7 @@ class TestSimoElement(unittest.TestCase):
 
     def test_static_cantilever_displacement_control(self):
         correct = np.array([0.00106344, 0.0, 0.05166995])
-        cantilever = test_static_cantilever_displacement_control.case()
+        cantilever = test_cantilever.case2()
         cantilever.printing = False
         cantilever.solve()
         u = cantilever.displacement[-1][:,1]
@@ -41,7 +40,7 @@ class TestSimoElement(unittest.TestCase):
         correct = np.array([[ 0.        ,  0.08215249,  0.29149011, -0.07170301, -0.7119306 ],
                             [ 0.        ,  1.57180122,  4.18189905,  2.4362738 ,  0.05252605],
                             [ 0.        , -0.26587026, -1.01934113, -0.37816349,  0.1400477 ]])
-        frame = test_dynamic_frame.case()
+        frame = test_frame.case()
         frame.printing = False
         frame.solve()
         u = frame.displacement[-1]
