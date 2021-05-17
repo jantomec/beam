@@ -32,6 +32,7 @@ class System:
         self.time = [0.0]
         self.current_time = self.time[0]
         self.final_time = 1.0
+        self.time_splitting = False
 
         # Invariants
         self.momentum = [self.compute_momentum()]
@@ -292,38 +293,44 @@ class System:
                 ele.int_pts[1].f[0] = ele.int_pts[1].f[2]
                 ele.int_pts[1].rot[0] = ele.int_pts[1].rot[2]
             
-            split_time_step_size_counter = 0
-            original_time_step = self.time_step
-            while True:
-                try:
-                    if self.contact_detection:
-                        self.__contact_loop()
-                    else:
-                        self.__newton_loop()
-                    break
-                except ConvergenceError:
-                    if self.printing: print('\n\tNo convergence, automatic time step split.')
-                    self.current_time -= self.time_step
-                    self.time_step = self.time_step / 2
-                    self.__displacement[2] = self.__displacement[0]
-                    self.__velocity[2] = self.__velocity[0]
-                    self.__acceleration[2] = self.__acceleration[0]
-                    self.__lagrange[2] = self.__lagrange[0]
-                    self.__degrees_of_freedom[2] = self.__degrees_of_freedom[0]
-                    for ele in self.elements:
-                        ele.int_pts[0].w[2] = ele.int_pts[0].w[0]
-                        ele.int_pts[0].a[2] = ele.int_pts[0].a[0]
-                        ele.int_pts[0].rot[2] = ele.int_pts[0].rot[0]
-                        ele.int_pts[1].om[2] = ele.int_pts[1].om[0]
-                        ele.int_pts[1].q[2] = ele.int_pts[1].q[0]
-                        ele.int_pts[1].f[2] = ele.int_pts[1].f[0]
-                        ele.int_pts[1].rot[2] = ele.int_pts[1].rot[0]
+            if self.time_splitting:
+                split_time_step_size_counter = 0
+                original_time_step = self.time_step
+                while True:
+                    try:
+                        if self.contact_detection:
+                            self.__contact_loop()
+                        else:
+                            self.__newton_loop()
+                        break
+                    except ConvergenceError:
+                        if self.printing: print('\n\tNo convergence, automatic time step split.')
+                        self.current_time -= self.time_step
+                        self.time_step = self.time_step / 2
+                        self.__displacement[2] = self.__displacement[0]
+                        self.__velocity[2] = self.__velocity[0]
+                        self.__acceleration[2] = self.__acceleration[0]
+                        self.__lagrange[2] = self.__lagrange[0]
+                        self.__degrees_of_freedom[2] = self.__degrees_of_freedom[0]
+                        for ele in self.elements:
+                            ele.int_pts[0].w[2] = ele.int_pts[0].w[0]
+                            ele.int_pts[0].a[2] = ele.int_pts[0].a[0]
+                            ele.int_pts[0].rot[2] = ele.int_pts[0].rot[0]
+                            ele.int_pts[1].om[2] = ele.int_pts[1].om[0]
+                            ele.int_pts[1].q[2] = ele.int_pts[1].q[0]
+                            ele.int_pts[1].f[2] = ele.int_pts[1].f[0]
+                            ele.int_pts[1].rot[2] = ele.int_pts[1].rot[0]
+                    
+                    split_time_step_size_counter += 1
+                    if split_time_step_size_counter > 5:
+                        raise ConvergenceError('Splitting time step did not help')
                 
-                split_time_step_size_counter += 1
-                if split_time_step_size_counter > 5:
-                    raise ConvergenceError('Splitting time step did not help')
-            
-            self.time_step = original_time_step
+                self.time_step = original_time_step
+            else:
+                if self.contact_detection:
+                    self.__contact_loop()
+                else:
+                    self.__newton_loop()
 
             self.displacement.append(self.__displacement[2].copy())
             self.velocity.append(self.__velocity[2].copy())
