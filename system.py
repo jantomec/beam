@@ -250,7 +250,7 @@ class System:
             # Check contact conditions
             # Inactive nodes
             for p in range(n_nodes):
-                if self.__degrees_of_freedom[2][6,p] == False and np.all(self.__degrees_of_freedom[2][:3,p] != np.zeros(3, dtype=bool)):
+                if self.__degrees_of_freedom[2][6,p] == False:
                     gap_condition_for_node_p = 0.0
                     for ele in self.elements:
                         try:
