@@ -609,6 +609,10 @@ class MortarContact(Element):
                 X[:,partner.nodes], x1
             )
             self.int_pts[g].s2 = v[0]
+            if -1 <= self.int_pts[g].s2 and self.int_pts[g].s2 <= 1:
+                self.int_pts[g].activated = True
+            else:
+                self.int_pts[g].activated = False
             r2 = self.int_pts[g].partner.prop.cr
             try:
                 old_n2 = self.int_pts[g].n2
@@ -630,10 +634,11 @@ class MortarContact(Element):
         l = find[0]
         val = 0
         for g in range(len(self.int_pts)):
-            gN = self.int_pts[g].gap
-            Phi1 = self.N_lagrange[:,g]
-            jac = self.parent.jacobian
-            val += Phi1[l] * gN * jac * self.int_pts[g].wgt
+            if self.int_pts[g].activated:
+                gN = self.int_pts[g].gap
+                Phi1 = self.N_lagrange[:,g]
+                jac = self.parent.jacobian
+                val += Phi1[l] * gN * jac * self.int_pts[g].wgt
         return val
         
     def contact_tangent(self, X, Lam, n_nodes_in_mesh):
@@ -641,51 +646,52 @@ class MortarContact(Element):
         Kg = np.zeros(shape=(n_dof*n_nodes_in_mesh, n_dof*n_nodes_in_mesh))
         
         for g in range(len(self.int_pts)):
-            partner = self.int_pts[g].partner
-            n2 = self.int_pts[g].n2
-            s2 = self.int_pts[g].s2
-            gN = self.int_pts[g].gap
-            v_abs = gN + self.parent.prop.cr + partner.prop.cr
-            if v_abs == 0:
-                print("Error in algorithm - can't process ||v|| == 0. Check equations what should be correct response.")
-            v = v_abs * n2
-            Phi1 = self.N_lagrange[:,g]
-            N1 = self.N_displacement[:,g]
-            lam = Lam[self.parent.nodes] @ Phi1
-            N2 = partner.Ndis[0](s2)
-            dN2 = partner.Ndis[1](s2)
-            ddN2 = partner.Ndis[2](s2)
-            dx2 = X[:,partner.nodes] @ dN2
-            ddx2 = X[:,partner.nodes] @ ddN2
-            S2c = dx2 @ dx2 - v @ ddx2
-            jac = self.parent.jacobian
-            
-            G1 = jac * lam / v_abs * ((math.skew(n2) @ math.skew(n2)) + np.outer(dx2, dx2) / S2c)
-            G2 = jac * lam / S2c * np.outer(dx2, n2)
-            G3 = jac * lam * v_abs / S2c * np.outer(n2, n2)
+            if self.int_pts[g].activated:
+                partner = self.int_pts[g].partner
+                n2 = self.int_pts[g].n2
+                s2 = self.int_pts[g].s2
+                gN = self.int_pts[g].gap
+                v_abs = gN + self.parent.prop.cr + partner.prop.cr
+                if v_abs == 0:
+                    print("Error in algorithm - can't process ||v|| == 0. Check equations what should be correct response.")
+                v = v_abs * n2
+                Phi1 = self.N_lagrange[:,g]
+                N1 = self.N_displacement[:,g]
+                lam = Lam[self.parent.nodes] @ Phi1
+                N2 = partner.Ndis[0](s2)
+                dN2 = partner.Ndis[1](s2)
+                ddN2 = partner.Ndis[2](s2)
+                dx2 = X[:,partner.nodes] @ dN2
+                ddx2 = X[:,partner.nodes] @ ddN2
+                S2c = dx2 @ dx2 - v @ ddx2
+                jac = self.parent.jacobian
+                
+                G1 = jac * lam / v_abs * ((math.skew(n2) @ math.skew(n2)) + np.outer(dx2, dx2) / S2c)
+                G2 = jac * lam / S2c * np.outer(dx2, n2)
+                G3 = jac * lam * v_abs / S2c * np.outer(n2, n2)
 
-            nodes = (self.parent.nodes, partner.nodes)
-            for b1 in range(2):
-                for (i, I) in enumerate(nodes[b1]):
-                    for b2 in range(2):
-                        for (j, J) in enumerate(nodes[b2]):
-                            row_dof = list(range(n_dof*I,n_dof*(I+1)))
-                            col_dof = list(range(n_dof*J,n_dof*(J+1)))
-                            Kl = np.zeros((n_dof, n_dof))
-                            
-                            if b1 == 0 and b2 == 0:
-                                Kl[:3,:3] = -N1[i] * G1 * N1[j]
-                                Kl[:3,6] = N1[i] * jac * n2 * Phi1[j]
-                                Kl[6,:3] = Phi1[i] * jac * n2 * N1[j]
-                            elif b1 == 0 and b2 == 1:
-                                Kl[:3,:3] = N1[i] * G1 * N2[j] - N1[i] * G2 * dN2[j]
-                                Kl[6,:3] = -Phi1[i] * jac * n2 * N2[j]
-                            elif b1 == 1 and b2 == 0:
-                                Kl[:3,:3] = N2[i] * G1 * N1[j] - dN2[i] * G2.T * N1[j]
-                                Kl[:3,6] = -N2[i] * jac * n2 * Phi1[j]
-                            elif b1 == 1 and b2 == 1:
-                                Kl[:3,:3] = -N2[i] * G1 * N2[j] + N2[i] * G2 * dN2[j] + dN2[i] * G2.T * N2[j] - dN2[i] * G3 * dN2[j]
-                            Kg[np.ix_(row_dof, col_dof)] += self.int_pts[g].wgt * Kl
+                nodes = (self.parent.nodes, partner.nodes)
+                for b1 in range(2):
+                    for (i, I) in enumerate(nodes[b1]):
+                        for b2 in range(2):
+                            for (j, J) in enumerate(nodes[b2]):
+                                row_dof = list(range(n_dof*I,n_dof*(I+1)))
+                                col_dof = list(range(n_dof*J,n_dof*(J+1)))
+                                Kl = np.zeros((n_dof, n_dof))
+                                
+                                if b1 == 0 and b2 == 0:
+                                    Kl[:3,:3] = -N1[i] * G1 * N1[j]
+                                    Kl[:3,6] = N1[i] * jac * n2 * Phi1[j]
+                                    Kl[6,:3] = Phi1[i] * jac * n2 * N1[j]
+                                elif b1 == 0 and b2 == 1:
+                                    Kl[:3,:3] = N1[i] * G1 * N2[j] - N1[i] * G2 * dN2[j]
+                                    Kl[6,:3] = -Phi1[i] * jac * n2 * N2[j]
+                                elif b1 == 1 and b2 == 0:
+                                    Kl[:3,:3] = N2[i] * G1 * N1[j] - dN2[i] * G2.T * N1[j]
+                                    Kl[:3,6] = -N2[i] * jac * n2 * Phi1[j]
+                                elif b1 == 1 and b2 == 1:
+                                    Kl[:3,:3] = -N2[i] * G1 * N2[j] + N2[i] * G2 * dN2[j] + dN2[i] * G2.T * N2[j] - dN2[i] * G3 * dN2[j]
+                                Kg[np.ix_(row_dof, col_dof)] += self.int_pts[g].wgt * Kl
         return Kg
 
     def contact_residual(self, X, Lam, n_nodes_in_mesh):
@@ -693,26 +699,27 @@ class MortarContact(Element):
         Rg = np.zeros(shape=(n_dof*n_nodes_in_mesh))
         
         for g in range(len(self.int_pts)):
-            partner = self.int_pts[g].partner
-            n2 = self.int_pts[g].n2
-            s2 = self.int_pts[g].s2
-            gN = self.int_pts[g].gap
-            N1 = self.N_displacement[:,g]
-            jac = self.parent.jacobian
-            Phi1 = self.N_lagrange[:,g]
-            lam = Lam[self.parent.nodes] @ Phi1
-            N2 = partner.Ndis[0](s2)
-            nodes = (self.parent.nodes, partner.nodes)
-            for b1 in range(2):
-                for (i, I) in enumerate(nodes[b1]):
-                    Rl = np.zeros(n_dof)
-                    row_dof = list(range(n_dof*I,n_dof*(I+1)))
-                    if b1 == 0:
-                        Rl[:3] = N1[i] * jac * lam * n2
-                        Rl[6] = Phi1[i] * jac * gN
-                    elif b1 == 1:
-                        Rl[:3] = -N2[i] * jac * lam * n2
-                    Rg[row_dof] += self.int_pts[g].wgt * Rl
+            if self.int_pts[g].activated:
+                partner = self.int_pts[g].partner
+                n2 = self.int_pts[g].n2
+                s2 = self.int_pts[g].s2
+                gN = self.int_pts[g].gap
+                N1 = self.N_displacement[:,g]
+                jac = self.parent.jacobian
+                Phi1 = self.N_lagrange[:,g]
+                lam = Lam[self.parent.nodes] @ Phi1
+                N2 = partner.Ndis[0](s2)
+                nodes = (self.parent.nodes, partner.nodes)
+                for b1 in range(2):
+                    for (i, I) in enumerate(nodes[b1]):
+                        Rl = np.zeros(n_dof)
+                        row_dof = list(range(n_dof*I,n_dof*(I+1)))
+                        if b1 == 0:
+                            Rl[:3] = N1[i] * jac * lam * n2
+                            Rl[6] = Phi1[i] * jac * gN
+                        elif b1 == 1:
+                            Rl[:3] = -N2[i] * jac * lam * n2
+                        Rg[row_dof] += self.int_pts[g].wgt * Rl
         return Rg
     
 def Xi_mat(
