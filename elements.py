@@ -344,6 +344,7 @@ class SimoBeam(Element):
         dx = 1 / self.jacobian * x @ self.int_pts[1].dN_displacement
         R = np.zeros(shape=(6*self.n_nodes))
         for g in range(self.int_pts[1].n_pts):
+            # internal distributed forces
             for i in range(self.n_nodes):
                 Xi_i = Xi_mat(
                     dx[:,g],
@@ -355,6 +356,10 @@ class SimoBeam(Element):
                     Xi_i @ self.int_pts[1].f[2,:,g] *
                     self.int_pts[1].wgt[g]
                 )
+                # external distributed forces
+                R[6*i:6*i+3] -= self.int_pts[1].N_displacement[i,g] * self.int_pts[1].q[2,:3,g]
+                R[6*i+3:6*(i+1)] -= self.int_pts[1].N_rotation[i,g] * self.int_pts[1].q[2,3:,g]
+
         return self.jacobian * R
 
     def mass_matrix(self, dt, beta, gamma) -> np.ndarray:

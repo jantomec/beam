@@ -74,6 +74,10 @@ class System:
         n_nodes = self.get_number_of_nodes()
         return np.zeros((6, n_nodes))
     
+    def distributed_force_load(self):
+        q = [np.zeros((6, ele.int_pts[1].n_pts)) for ele in self.elements]
+        return q
+    
     def follower_force_load(self):
         n_nodes = self.get_number_of_nodes()
         return np.zeros((6, n_nodes))
@@ -101,6 +105,8 @@ class System:
             self.__velocity[1] = self.__velocity[2]
             self.__acceleration[1] = self.__acceleration[2]
             self.__lagrange[1] = self.__lagrange[2]
+            for ele in self.elements:
+                ele.int_pts[1].q[1] = ele.int_pts[1].q[2]
 
             # In iteration 0 discover the current state of the system,
             #  therefore skip the computation of displacements.
@@ -187,6 +193,9 @@ class System:
             
             # External forces
             x[:6] = self.force_load()
+            Q0 = self.distributed_force_load()
+            for (e, ele) in enumerate(self.elements):
+                ele.int_pts[1].q[2] = Q0[e] 
 
             for ele in self.elements:
                 # Internal forces
@@ -274,6 +283,14 @@ class System:
             self.__acceleration[0] = self.__acceleration[2]
             self.__lagrange[0] = self.__lagrange[2]
             self.__degrees_of_freedom[0] = self.__degrees_of_freedom[2]
+            for ele in self.elements:
+                ele.int_pts[0].w[0] = ele.int_pts[0].w[2]
+                ele.int_pts[0].a[0] = ele.int_pts[0].a[2]
+                ele.int_pts[0].rot[0] = ele.int_pts[0].rot[2]
+                ele.int_pts[1].om[0] = ele.int_pts[1].om[2]
+                ele.int_pts[1].q[0] = ele.int_pts[1].q[2]
+                ele.int_pts[1].f[0] = ele.int_pts[1].f[2]
+                ele.int_pts[1].rot[0] = ele.int_pts[1].rot[2]
             
             split_time_step_size_counter = 0
             original_time_step = self.time_step
