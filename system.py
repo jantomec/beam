@@ -3,8 +3,9 @@ from typing import Callable
 import interpolation as intp
 from errors import ConvergenceError
 
+import contact
 import matplotlib.pyplot as plt
-import postprocessing
+import postprocessing as postproc
 
 class System:
     def __init__(self, coordinates, elements):
@@ -135,22 +136,28 @@ class System:
                         tangent += c[0] * contact_element.contact_tangent(self.coordinates+self.__displacement[2], self.__lagrange[2], n_nodes)
                     except AttributeError:
                         pass
-                    
-                # Solve system of equations by replacing values.
-                # mask = ~self.__degrees_of_freedom[2]
-                # tangent[mask.flatten(order='F')] = np.identity(n_dof)[mask.flatten(order='F')]
-                # tangent[:,mask.flatten(order='F')] = np.identity(n_dof)[:,mask.flatten(order='F')]
-                # x[mask] = np.zeros(shape=(n_ndof,n_nodes))[mask]
-                # x = np.linalg.solve(tangent, x.flatten(order='F')).reshape((n_ndof,n_nodes), order='F')
-                
+                                    
+                # Dual basis condensation
+                # self.dual_basis_condensation = True
+                # if self.dual_basis_condensation:
+                #     mortar_elements = []
+                #     nonmortar_elements = []
+                #     for ele in self.elements:
+                #         try:
+                #             contact_element = ele.child
+                #             nonmortar_elements.append(ele)
+                #         except AttributeError:
+                #             mortar_elements.append(ele)
+                #     nonmortar_nodes = contact.collect_nodes(nonmortar_elements)
+                #     mortar_nodes = contact.collect_nodes(mortar_elements)
+
                 # Solve system of equations by condensing inactive dofs
                 mask = self.__degrees_of_freedom[2].flatten(order='F')
                 x_flat = x.flatten(order='F')
-                # x_flat[mask] = np.linalg.solve(tangent[mask][:,mask], x_flat[mask])
-                x_flat[mask] = np.linalg.lstsq(tangent[mask][:,mask], x_flat[mask], rcond=None)[0]
+                x_flat[mask] = np.linalg.solve(tangent[mask][:,mask], x_flat[mask])
                 x_flat[~mask] = 0.0
                 x = x_flat.reshape((n_ndof,n_nodes), order='F')
-            
+
             # Update nodal beam values
             self.__displacement[2] += x[:3]
             if i == 0:
@@ -184,7 +191,8 @@ class System:
                     contact_element.find_gap(self.coordinates+self.__displacement[2])
                 except AttributeError:
                     pass
-            
+            self.displacement.append(self.__displacement[2].copy())
+            postproc.line_plot(self, (-0.2,2.2), (-0.7,0.7), (-0.7,0.7), -1)
             # Displacement convergence
             if self.convergence_test_type == "DSP" and i > 0:
                 if self.printing and self.print_residual: print("Displacement", np.linalg.norm(x[:3]))
@@ -206,15 +214,17 @@ class System:
                     R += ele.mass_residual(self.__acceleration[2][:,ele.nodes])
                 A = ele.assemb
                 x -= (A @ R).reshape((n_ndof, n_nodes), order='F')
-            
+                
                 # Contact forces
                 try:
                     contact_element = ele.child
-                    contact_forces = contact_element.contact_residual(self.coordinates+self.__displacement[2], self.__lagrange[2], n_nodes).reshape((n_ndof, n_nodes), order='F')
+                    contact_forces = contact_element.contact_residual(
+                        self.coordinates+self.__displacement[2], self.__lagrange[2], n_nodes
+                    ).reshape((n_ndof, n_nodes), order='F')
                     x -= contact_forces
                 except AttributeError:
                     pass
-                
+            
             # Residual convergence
             if i == 0:
                 res_norm = np.linalg.norm(x[self.__degrees_of_freedom[2]])
@@ -243,6 +253,18 @@ class System:
         contact_loop_counter = 0
         while active_nodes_changed:
             active_nodes_changed = False
+            # self.__displacement[2] = self.__displacement[0]
+            # self.__velocity[2] = self.__velocity[0]
+            # self.__acceleration[2] = self.__acceleration[0]
+            # self.__lagrange[2] = self.__lagrange[0]
+            # for ele in self.elements:
+            #     ele.int_pts[0].w[2] = ele.int_pts[0].w[0]
+            #     ele.int_pts[0].a[2] = ele.int_pts[0].a[0]
+            #     ele.int_pts[0].rot[2] = ele.int_pts[0].rot[0]
+            #     ele.int_pts[1].om[2] = ele.int_pts[1].om[0]
+            #     ele.int_pts[1].q[2] = ele.int_pts[1].q[0]
+            #     ele.int_pts[1].f[2] = ele.int_pts[1].f[0]
+            #     ele.int_pts[1].rot[2] = ele.int_pts[1].rot[0]
             
             # Newton-Raphson method converged to a new solution
             self.__newton_loop()
