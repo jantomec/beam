@@ -263,6 +263,7 @@ class SimoBeam(Element):
                 math.conjugate_quat(self.int_pts[1].rot[2,:,g]),
                 self.int_pts[1].om[2,:,g]
             )
+            
             fn = self.prop.C[:3,:3] @ Gamma
             fm = self.prop.C[3:,3:] @ kappa
             self.int_pts[1].f[2,:3,g] = math.rotate(
@@ -595,8 +596,6 @@ class MortarContact(Element):
             self.int_pts[g].partner = candidate_elements[selected]
 
     def find_gap(self, X):
-        # X ... current iteration position
-        # XTm1 ... last converged time step position
         r1 = self.parent.prop.cr
         for g in range(len(self.int_pts)):
             partner = self.int_pts[g].partner
@@ -705,6 +704,7 @@ class MortarContact(Element):
                 s2 = self.int_pts[g].s2
                 gN = self.int_pts[g].gap
                 N1 = self.N_displacement[:,g]
+                
                 jac = self.parent.jacobian
                 Phi1 = self.N_lagrange[:,g]
                 lam = Lam[self.parent.nodes] @ Phi1
@@ -713,12 +713,12 @@ class MortarContact(Element):
                 for b1 in range(2):
                     for (i, I) in enumerate(nodes[b1]):
                         Rl = np.zeros(n_dof)
-                        row_dof = list(range(n_dof*I,n_dof*(I+1)))
                         if b1 == 0:
                             Rl[:3] = N1[i] * jac * lam * n2
                             Rl[6] = Phi1[i] * jac * gN
                         elif b1 == 1:
                             Rl[:3] = -N2[i] * jac * lam * n2
+                        row_dof = list(range(n_dof*I,n_dof*(I+1)))
                         Rg[row_dof] += self.int_pts[g].wgt * Rl
         return Rg
     
