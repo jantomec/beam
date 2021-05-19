@@ -134,6 +134,7 @@ class System:
                     try:
                         contact_element = ele.child
                         tangent += c[0] * contact_element.contact_tangent(self.coordinates+self.__displacement[2], self.__lagrange[2], n_nodes)
+                        mask = self.__degrees_of_freedom[2].flatten(order='F')
                     except AttributeError:
                         pass
                 
@@ -177,7 +178,6 @@ class System:
                     contact_element.find_gap(self.coordinates+self.__displacement[2])
                 except AttributeError:
                     pass
-            self.displacement.append(self.__displacement[2].copy())
             
             # Displacement convergence
             if self.convergence_test_type == "DSP" and i > 0:
