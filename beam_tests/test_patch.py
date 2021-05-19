@@ -36,15 +36,8 @@ def case():
         'contact_radius':0.005
     }
     
-    # (coordinates1, elements1) = mesh.line_mesh(A=(0.05,0,0.015), B=(0.85,0,0.015), n_elements=1, order=1, material=mat, reference_vector=(0,0,1))
-    # (coordinates2, elements2) = mesh.line_mesh(A=(0,0,0), B=(2.0,0,0), n_elements=3, order=1, material=mat, reference_vector=(0,0,1),
-    #                                            starting_node_index=coordinates1.shape[1], possible_contact_partners=elements1,
-    #                                            dual_basis_functions=False, n_contact_integration_points=None)
-    # coordinates2[0,1] = 0.9
-    # coordinates2[0,2] = 1.2
-    
     (coordinates1, elements1) = mesh.line_mesh(A=(0,0,0), B=(2.0,0,0), n_elements=3, order=1, material=mat, reference_vector=(0,0,1))
-    (coordinates2, elements2) = mesh.line_mesh(A=(0.05,0,0.015), B=(0.85,0,0.015), n_elements=1, order=1, material=mat, reference_vector=(0,0,1),
+    (coordinates2, elements2) = mesh.line_mesh(A=(0.05,0,0.015), B=(0.85,0,0.015), n_elements=2, order=1, material=mat, reference_vector=(0,0,1),
                                                starting_node_index=coordinates1.shape[1], possible_contact_partners=elements1,
                                                dual_basis_functions=False, n_contact_integration_points=None)
     
@@ -72,8 +65,9 @@ def case():
             q.append(qe)
         return q
     
-    system.degrees_of_freedom[-1][:6,coordinates1.shape[1]] = False  # [current time, dof 0 through 5, first node of the first beam]
-    system.degrees_of_freedom[-1][:6,:coordinates1.shape[1]] = False  # [current time, dof 0 through 5, all nodes of the second beam]
+    system.degrees_of_freedom[-1][0,coordinates1.shape[1]] = False  # [current time, dof 0 through 5, first node of the top beam]
+    system.degrees_of_freedom[-1][6,coordinates1.shape[1]+1:] = True  # [current time, dof 6, all but first node of the top beam]
+    system.degrees_of_freedom[-1][:6,:coordinates1.shape[1]] = False  # [current time, dof 0 through 5, all nodes of the bottom beam]
     system.distributed_force_load = functools.partial(user_distributed_force_load, system)
     
     return system
