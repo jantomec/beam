@@ -96,7 +96,7 @@ def main():
 
     plt.plot(gap)
     plt.xlabel("time")
-    plt.ylabel("gap")
+    plt.ylabel("gap error")
     plt.show()
 
 if __name__ == "__main__":
