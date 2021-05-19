@@ -17,6 +17,7 @@ import numpy as np
 from system import System
 import mesh
 import postprocessing as postproc
+import matplotlib.pyplot as plt
 
 
 def case():
@@ -88,6 +89,15 @@ def main():
     for i in range(0, len(system.time), 20):
         postproc.line_plot(system, (-0.2,2.2), (-0.7,0.7), (-0.7,0.7), i)
 
+    gap = []
+    for i in range(len(system.time)):
+        gap_f = system.gap_function()
+        gap.append(np.linalg.norm(gap_f[:,1]))
+
+    plt.plot(gap)
+    plt.xlabel("time")
+    plt.ylabel("gap")
+    plt.show()
 
 if __name__ == "__main__":
     main()
