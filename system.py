@@ -178,7 +178,7 @@ class System:
                 except AttributeError:
                     pass
             self.displacement.append(self.__displacement[2].copy())
-            postproc.line_plot(self, (-0.2,2.2), (-0.7,0.7), (-0.7,0.7), -1)
+            
             # Displacement convergence
             if self.convergence_test_type == "DSP" and i > 0:
                 if self.printing and self.print_residual: print("Displacement", np.linalg.norm(x[:3]))
