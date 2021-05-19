@@ -49,7 +49,7 @@ def case():
     
     system = System(coordinates, elements)
     system.time_step = 1.0
-    system.final_time = 100.0
+    system.final_time = 101.0
     system.solver_type = 'static'
     system.convergence_test_type = 'RES'
     system.contact_detection = True
@@ -69,13 +69,14 @@ def case():
         n_nodes = self.get_number_of_nodes()
         U = np.zeros((6, n_nodes))
         if self.current_time > 1:
-            U[0,coordinates1.shape[1]] = self.current_time / 101 * 1.001
+            U[0,coordinates1.shape[1]] = 1.001 / 100
         return U
         
     system.degrees_of_freedom[-1][0,coordinates1.shape[1]] = False  # [current time, dof 0 through 5, first node of the top beam]
-    system.degrees_of_freedom[-1][6,coordinates1.shape[1]+1:] = True  # [current time, dof 6, all but first node of the top beam]
+    system.degrees_of_freedom[-1][6,coordinates1.shape[1]:] = True  # [current time, dof 6, all nodes of the top beam]
     system.degrees_of_freedom[-1][:6,:coordinates1.shape[1]] = False  # [current time, dof 0 through 5, all nodes of the bottom beam]
     system.distributed_force_load = functools.partial(user_distributed_force_load, system)
+    system.displacement_load = functools.partial(user_displacement_load, system)
     
     return system
 
@@ -84,7 +85,7 @@ def main():
     system = case()
     system.solve()
     
-    for i in range(len(system.time)):
+    for i in range(0, len(system.time), 20):
         postproc.line_plot(system, (-0.2,2.2), (-0.7,0.7), (-0.7,0.7), i)
 
 
