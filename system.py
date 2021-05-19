@@ -136,21 +136,7 @@ class System:
                         tangent += c[0] * contact_element.contact_tangent(self.coordinates+self.__displacement[2], self.__lagrange[2], n_nodes)
                     except AttributeError:
                         pass
-                                    
-                # Dual basis condensation
-                # self.dual_basis_condensation = True
-                # if self.dual_basis_condensation:
-                #     mortar_elements = []
-                #     nonmortar_elements = []
-                #     for ele in self.elements:
-                #         try:
-                #             contact_element = ele.child
-                #             nonmortar_elements.append(ele)
-                #         except AttributeError:
-                #             mortar_elements.append(ele)
-                #     nonmortar_nodes = contact.collect_nodes(nonmortar_elements)
-                #     mortar_nodes = contact.collect_nodes(mortar_elements)
-
+                
                 # Solve system of equations by condensing inactive dofs
                 mask = self.__degrees_of_freedom[2].flatten(order='F')
                 x_flat = x.flatten(order='F')
@@ -200,6 +186,9 @@ class System:
                     if self.printing: print("Time step converged within", i+1, "iterations.")
                     break
             
+            # Reset x
+            x[:] = 0.0
+
             # External forces
             x[:6] = self.force_load()
             Q0 = self.distributed_force_load()
@@ -273,7 +262,7 @@ class System:
             # Check contact conditions
             # Inactive nodes
             for p in range(n_nodes):
-                if self.__degrees_of_freedom[2][6,p] == False:
+                if self.__degrees_of_freedom[2][6,p] == False and np.all(self.__degrees_of_freedom[2][:3,p] != np.zeros(3, dtype=bool)):
                     gap_condition_for_node_p = 0.0
                     for ele in self.elements:
                         try:
