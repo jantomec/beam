@@ -15,8 +15,7 @@ sys.path.insert(0, cwd)
 
 import numpy as np
 import unittest
-from beam_tests import test_cantilever
-from beam_tests import test_frame
+from beam_tests import test_cantilever, test_frame, test_patch
 
 class TestSimoElement(unittest.TestCase):
 
@@ -45,6 +44,19 @@ class TestSimoElement(unittest.TestCase):
         frame.solve()
         u = frame.displacement[-1]
         self.assertTrue(np.allclose(u, correct, rtol=1e-8))
-
+    
+    def test_contact_patch(self):
+        correct = 0.0
+        system = test_patch.case()
+        system.printing = False
+        system.solve()
+        
+        gap = []
+        for i in range(len(system.time)):
+            gap_f = system.gap_function()
+            gap.append(np.linalg.norm(gap_f[:,1]))
+        u = np.linalg.norm(gap)
+        self.assertTrue(np.allclose(u, correct, rtol=1e-8))
+        
 if __name__ == '__main__':
     unittest.main()
