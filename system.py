@@ -242,19 +242,6 @@ class System:
         contact_loop_counter = 0
         while active_nodes_changed:
             active_nodes_changed = False
-            # self.__displacement[2] = self.__displacement[0]
-            # self.__velocity[2] = self.__velocity[0]
-            # self.__acceleration[2] = self.__acceleration[0]
-            # self.__lagrange[2] = self.__lagrange[0]
-            # for ele in self.elements:
-            #     ele.int_pts[0].w[2] = ele.int_pts[0].w[0]
-            #     ele.int_pts[0].a[2] = ele.int_pts[0].a[0]
-            #     ele.int_pts[0].rot[2] = ele.int_pts[0].rot[0]
-            #     ele.int_pts[1].om[2] = ele.int_pts[1].om[0]
-            #     ele.int_pts[1].q[2] = ele.int_pts[1].q[0]
-            #     ele.int_pts[1].f[2] = ele.int_pts[1].f[0]
-            #     ele.int_pts[1].rot[2] = ele.int_pts[1].rot[0]
-            
             # Newton-Raphson method converged to a new solution
             self.__newton_loop()
             self.__degrees_of_freedom[1] = self.__degrees_of_freedom[2]
