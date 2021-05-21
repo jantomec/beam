@@ -591,8 +591,13 @@ class MortarContact(Element):
                         selected = 0
                     else:
                         selected = 1
+                self.int_pts[g].activated = True
             else:
                 selected = 0
+                if -1 <= distance_all[0][0] and distance_all[0][0] <= 1:
+                    self.int_pts[g].activated = True
+                else:
+                    self.int_pts[g].activated = False
             self.int_pts[g].partner = candidate_elements[selected]
 
     def find_gap(self, X):
@@ -608,10 +613,6 @@ class MortarContact(Element):
                 X[:,partner.nodes], x1
             )
             self.int_pts[g].s2 = v[0]
-            if -1 <= self.int_pts[g].s2 and self.int_pts[g].s2 <= 1:
-                self.int_pts[g].activated = True
-            else:
-                self.int_pts[g].activated = False
             r2 = self.int_pts[g].partner.prop.cr
             try:
                 old_n2 = self.int_pts[g].n2
