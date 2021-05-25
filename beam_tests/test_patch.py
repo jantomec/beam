@@ -18,6 +18,7 @@ from system import System
 import mesh
 import postprocessing as postproc
 import matplotlib.pyplot as plt
+import matplotlib
 
 
 def case():
@@ -29,7 +30,7 @@ def case():
     mat = {
         'area':7.85398e-5,
         'elastic_modulus':1.0e9,
-        'shear_modulus':1.0e9,
+        'shear_modulus':0.3846e9,
         'inertia_primary':4.90874e-10,
         'inertia_secondary':4.90874e-10,
         'inertia_torsion':9.81748e-10,
@@ -86,17 +87,22 @@ def main():
     system = case()
     system.solve()
     
-    for i in range(0, len(system.time), 20):
-        postproc.line_plot(system, (-0.2,2.2), (-0.7,0.7), (-0.7,0.7), i)
+    # for i in range(0, len(system.time), 20):
+    #     postproc.line_plot(system, (-0.2,2.2), (-0.7,0.7), (-0.7,0.7), i)
 
-    gap = []
-    for i in range(len(system.time)):
-        gap_f = system.gap_function()
-        gap.append(np.linalg.norm(gap_f[:,1]))
-
-    plt.plot(gap)
-    plt.xlabel("time")
-    plt.ylabel("gap error")
+    gN = np.array(system.gap_function)
+    gE = [0.015]
+    for g in gN:
+        gE.append(np.linalg.norm(g[:,1]))
+    
+    font = {'family' : 'normal',
+            'size'   : 16}
+    matplotlib.rc('font', **font)
+    fig = plt.figure(tight_layout=True)
+    ax = plt.axes()
+    ax.plot(gE)
+    ax.set_xlabel('Time')
+    ax.set_ylabel("Gap")
     plt.show()
 
 if __name__ == "__main__":
