@@ -50,12 +50,9 @@ class TestSimoElement(unittest.TestCase):
         system = test_patch.case()
         system.printing = False
         system.solve()
-        
-        gap = []
-        for i in range(len(system.time)):
-            gap_f = system.gap_function()
-            gap.append(np.linalg.norm(gap_f[:,1]))
-        u = np.linalg.norm(gap)
+
+        gN = np.array(system.gap_function)
+        u = np.linalg.norm(gN[:,:,1])
         self.assertTrue(np.allclose(u, correct, rtol=1e-8))
         
 if __name__ == '__main__':
