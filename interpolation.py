@@ -193,3 +193,26 @@ def dual_basis_function(degree, eval_pts):
             R[j] += wg[g] * phi[j,g]
         a[j] = np.linalg.solve(L, R)
     return a @ lagrange_polynomial(degree, eval_pts)
+
+def bezier_spline(
+    nodes: np.ndarray,
+    eval_pts: np.ndarray
+) -> np.ndarray:
+    # requires larger changes in code (variation and linearization of interpolation functions as they depend on position)
+    P1 = nodes[:,0]
+    P2 = nodes[:,1]
+    P3 = nodes[:,2]
+    P4 = nodes[:,3]
+    B = np.zeros((3,4))
+    B[:,0] = 1.0/4 * (P2 - 2*P3 + P4)
+    B[:,1] = 1.0/4 * (P1 - P2 - P3 + P4)
+    B[:,2] = 1.0/4 * (-2*P1 - P2 + 4*P3 - P4)
+    B[:,3] = 1.0/4 * (P1 + P2 + 3*P3 - P4)
+    s = np.array([eval_pts**3, eval_pts**2, eval_pts**1, eval_pts**0])
+    return B @ s
+
+def hermite_polynomial(
+    nodes: np.ndarray,
+    eval_pts: np.ndarray
+) -> np.ndarray:
+    # requires larger changes in code (variation and linearization of interpolation functions as they depend on position)
