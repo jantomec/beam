@@ -37,7 +37,6 @@ class SimoBeam(Element):
         mesh_dof_per_node: int,
         ref_vec: np.ndarray,
         coordinates: np.ndarray,
-        beam=None,
         angular_velocities: np.ndarray = None,
         angular_accelerations: np.ndarray = None,
         distributed_load: np.ndarray = np.zeros(shape=(6)),
@@ -49,7 +48,8 @@ class SimoBeam(Element):
         inertia_secondary: float = None,
         inertia_torsion: float = None,
         shear_coefficient: float = 1,
-        contact_radius: float = 1
+        contact_radius: float = 1,
+        displacement_interpolation: str = "Lagrange polynomials"
     ):
         # --------------------------------------------------------------
         # nodes
@@ -70,12 +70,29 @@ class SimoBeam(Element):
 
         # --------------------------------------------------------------
         # displacement interpolation
-        self.Ndis = [
-            lambda x: intp.lagrange_polynomial(self.n_nodes-1, x),
-            lambda x: intp.lagrange_polynomial_derivative(self.n_nodes-1, x),
-            lambda x: intp.lagrange_polynomial_2_derivative(self.n_nodes-1, x),
-            lambda x: intp.lagrange_polynomial_3_derivative(self.n_nodes-1, x)
-        ]
+        if displacement_interpolation == "Lagrange polynomials":
+            self.Ndis = [
+                lambda x: intp.lagrange_polynomial(self.n_nodes-1, x),
+                lambda x: intp.lagrange_polynomial_derivative(self.n_nodes-1, x),
+                lambda x: intp.lagrange_polynomial_2_derivative(self.n_nodes-1, x),
+                lambda x: intp.lagrange_polynomial_3_derivative(self.n_nodes-1, x)
+            ]
+        elif displacement_interpolation == "Bezier spline":
+            self.Ndis = [
+                lambda x: intp.lagrange_polynomial(self.n_nodes-1, x),
+                lambda x: intp.lagrange_polynomial_derivative(self.n_nodes-1, x),
+                lambda x: intp.lagrange_polynomial_2_derivative(self.n_nodes-1, x),
+                lambda x: intp.lagrange_polynomial_3_derivative(self.n_nodes-1, x)
+            ]
+        elif displacement_interpolation == "Hermite polynomials":
+            self.Ndis = [
+                lambda x: intp.lagrange_polynomial(self.n_nodes-1, x),
+                lambda x: intp.lagrange_polynomial_derivative(self.n_nodes-1, x),
+                lambda x: intp.lagrange_polynomial_2_derivative(self.n_nodes-1, x),
+                lambda x: intp.lagrange_polynomial_3_derivative(self.n_nodes-1, x)
+            ]
+        else:
+            raise Exception("Unimplemented interpolation type. Possible: Lagrange polynomials (default), Bezier spline, Hermite polynomials")
 
         # rotation interpolation
         self.Nrot = [
@@ -600,8 +617,7 @@ class MortarContact(Element):
                     self.int_pts[g].activated = False
             self.int_pts[g].partner = candidate_elements[selected]
 
-    def find_gap(self, X):
-        r1 = self.parent.prop.cr
+    def perform_nearest_point_projection(self, X):
         for g in range(len(self.int_pts)):
             partner = self.int_pts[g].partner
             N1 = self.N_displacement[:,g]
@@ -613,14 +629,18 @@ class MortarContact(Element):
                 X[:,partner.nodes], x1
             )
             self.int_pts[g].s2 = v[0]
+            self.int_pts[g].v = v[1:]
+    
+    def compute_normal(self):
+        for g in range(len(self.int_pts)):
+            self.int_pts[g].sigma = np.sign(self.int_pts[g].converged_n2 @ math.normalized(self.int_pts[g].v))
+            self.int_pts[g].n2 = self.int_pts[g].sigma * math.normalized(self.int_pts[g].v)
+    
+    def compute_gap(self):
+        r1 = self.parent.prop.cr
+        for g in range(len(self.int_pts)):
             r2 = self.int_pts[g].partner.prop.cr
-            try:
-                old_n2 = self.int_pts[g].n2
-                sign = np.sign(old_n2 @ math.normalized(v[1:]))
-                self.int_pts[g].n2 = sign * math.normalized(v[1:])
-            except AttributeError:
-                self.int_pts[g].n2 = math.normalized(v[1:])
-            self.int_pts[g].gap = v[1:] @ self.int_pts[g].n2 - r1 - r2
+            self.int_pts[g].gap = self.int_pts[g].v @ self.int_pts[g].n2 - r1 - r2
         
     def gap_condition_contribution(self, p, X):
         # This function computes elements contribution to node p weak
@@ -650,11 +670,11 @@ class MortarContact(Element):
                 partner = self.int_pts[g].partner
                 n2 = self.int_pts[g].n2
                 s2 = self.int_pts[g].s2
-                gN = self.int_pts[g].gap
-                v_abs = gN + self.parent.prop.cr + partner.prop.cr
+                sigma = self.int_pts[g].sigma
+                v = self.int_pts[g].v
+                v_abs = np.linalg.norm(v)
                 if v_abs == 0:
                     print("Error in algorithm - can't process ||v|| == 0. Check equations what should be correct response.")
-                v = v_abs * n2
                 Phi1 = self.N_lagrange[:,g]
                 N1 = self.N_displacement[:,g]
                 lam = Lam[self.parent.nodes] @ Phi1
@@ -666,9 +686,9 @@ class MortarContact(Element):
                 S2c = dx2 @ dx2 - v @ ddx2
                 jac = self.parent.jacobian
                 
-                G1 = jac * lam / v_abs * ((math.skew(n2) @ math.skew(n2)) + np.outer(dx2, dx2) / S2c)
+                G1 = jac * lam * sigma / v_abs * ((math.skew(n2) @ math.skew(n2)) + np.outer(dx2, dx2) / S2c)
                 G2 = jac * lam / S2c * np.outer(dx2, n2)
-                G3 = jac * lam * v_abs / S2c * np.outer(n2, n2)
+                G3 = jac * lam / S2c * np.outer(n2, v)
 
                 nodes = (self.parent.nodes, partner.nodes)
                 for b1 in range(2):

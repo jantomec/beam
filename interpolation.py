@@ -216,3 +216,4 @@ def hermite_polynomial(
     eval_pts: np.ndarray
 ) -> np.ndarray:
     # requires larger changes in code (variation and linearization of interpolation functions as they depend on position)
+    return
