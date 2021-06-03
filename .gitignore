@@ -1,5 +1,5 @@
 *.pyc
-sandbox.ipynb
+**.ipynb
 .DS_Store
 .ipynb_checkpoints
 .vscode/
