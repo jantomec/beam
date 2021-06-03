@@ -175,7 +175,7 @@ class SimoBeam(Element):
             contact_radius=contact_radius
         )
 
-    def disp_shape_fun(int_points_locations):
+    def disp_shape_fun(self, int_points_locations):
         return intp.lagrange_polynomial(self.n_nodes-1, int_points_locations)
 
     def update(self, x, th_iter, dt, beta, gamma, iter0 = False):
@@ -561,61 +561,42 @@ class MortarContact(Element):
             self.dN_displacement = self.parent.Ndis[1]([self.int_pts[g].loc for g in range(len(self.int_pts))])
             self.N_lagrange = self.Nlam[0]([self.int_pts[g].loc for g in range(len(self.int_pts))])
 
-    def closest_mortar_node(self, X, mortar_nodes):
-        x = X[:,self.parent.nodes] @ self.N_displacement
-        for g in range(len(self.int_pts)):
-            d = np.empty(shape=(len(mortar_nodes)))
-            for i in range(len(mortar_nodes)):
-                d[i] = np.linalg.norm(x[:,g] - X[:,mortar_nodes[i]])
-            self.int_pts[g].cmn = mortar_nodes[np.argmin(d)]
-
     def find_partner(self, X):
-        mortar_nodes = contact.collect_nodes(self.possible_contact_partners)
-        self.closest_mortar_node(X, mortar_nodes)
         
         # integration point positions
         x1 = X[:,self.parent.nodes] @ self.N_displacement
 
         for g in range(len(self.int_pts)):
-            # Find connected elements to node
-            candidate_elements = set()
-            for e in self.possible_contact_partners:
-                if self.int_pts[g].cmn in e.nodes:
-                    candidate_elements.add(e)
             
-            candidate_elements = list(candidate_elements)
-            distance_all = []
+            candidate_elements = self.possible_contact_partners
+            projections_all = []
             for candidate in candidate_elements:
-                distance = proj.nearest_point_projection(
-                    candidate.Ndis[0],
-                    candidate.Ndis[1],
-                    candidate.Ndis[2],
-                    X[:,candidate.nodes], x1[:,g]
-                )
-                distance_all.append(distance)
-            if len(candidate_elements) > 2:
-                raise MeshError("Currently no forked beams are supported. The problem lays in finding the closest point algorithm.")
-            if len(candidate_elements) == 0:
-                raise Exception("Unknown error when searching for partner - investigate.")
-            gaps = [np.linalg.norm(di[1:]) for di in distance_all]
-            if len(candidate_elements) == 2:
-                if -1 <= distance_all[0][0] and distance_all[0][0] <= 1 and -1 <= distance_all[1][0] and distance_all[1][0] <= 1:
-                    selected = np.argmin(gaps)
-                elif not (-1 <= distance_all[0][0] and distance_all[0][0] <= 1) and not (-1 <= distance_all[1][0] and distance_all[1][0] <= 1):
-                    selected = np.argmin(gaps)
-                else:
-                    if -1 <= distance_all[0][0] and distance_all[0][0] <= 1:
-                        selected = 0
-                    else:
-                        selected = 1
-                self.int_pts[g].activated = True
-            else:
-                selected = 0
-                if -1 <= distance_all[0][0] and distance_all[0][0] <= 1:
-                    self.int_pts[g].activated = True
-                else:
-                    self.int_pts[g].activated = False
-            self.int_pts[g].partner = candidate_elements[selected]
+                try:
+                    projection = proj.nearest_point_projection(
+                        candidate.Ndis[0],
+                        candidate.Ndis[1],
+                        candidate.Ndis[2],
+                        X[:,candidate.nodes], x1[:,g]
+                    )
+                    projections_all.append(projection)
+                except ConvergenceError:
+                    projections_all.append(np.ones(4)*np.inf)
+
+            projections_within_domain = [
+                i for i in range(len(projections_all)) if -1 < projections_all[i][0] and projections_all[i][0] < 1
+            ]
+
+            if len(projections_within_domain) == 0:
+                self.int_pts[g].activated = False
+                return
+            
+            filtered_projections = [projections_all[i] for i in projections_within_domain]
+            filtered_candidates = [candidate_elements[i] for i in projections_within_domain]
+            
+            distances = np.array([np.linalg.norm(pr[1:]) for pr in filtered_projections])
+            selected = np.argmin(distances)
+            self.int_pts[g].activated = True
+            self.int_pts[g].partner = filtered_candidates[selected]
 
     def perform_nearest_point_projection(self, X):
         for g in range(len(self.int_pts)):
