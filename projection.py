@@ -31,7 +31,6 @@ def nearest_point_projection(
         K[3,1:] = (X @ dN([u[0]])).flatten()
         K[:3,1:] = np.identity(3)
         u += np.linalg.solve(K, R)
-        print(i, np.linalg.solve(K, R))
         i+= 1
     if i == MAXITER:
         raise ConvergenceError("Projection did not converge.")
