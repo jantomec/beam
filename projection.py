@@ -26,41 +26,16 @@ def nearest_point_projection(
             (X @ N([u[0]])).flatten() + u[1:]
         )
         R[3] = 0 - ((X @ dN([u[0]])).flatten()).dot(u[1:])
+        K[3,0] = ((X @ ddN([u[0]])).flatten()).dot(u[1:])
         K[:3,0] = (X @ dN([u[0]])).flatten()
-        K[3,0] = ((X @ ddN([u[0]])).flatten()
-        ).dot(u[1:])
         K[3,1:] = (X @ dN([u[0]])).flatten()
         K[:3,1:] = np.identity(3)
         u += np.linalg.solve(K, R)
+        print(i, np.linalg.solve(K, R))
         i+= 1
     if i == MAXITER:
         raise ConvergenceError("Projection did not converge.")
     return u
-
-# def nearest_point_projection(
-#     interpolation: str,
-#     X: np.ndarray,
-#     P: np.ndarray,
-#     TOLER: float = 1e-8,
-#     MAXITER: int = 10
-# ) -> np.ndarray:
-    
-#     l = _nearest_point_projection_(
-#         interpolation, X, P, -1, TOLER, MAXITER
-#     )
-#     r = _nearest_point_projection_(
-#         interpolation, X, P, 1, TOLER, MAXITER
-#     )
-#     if not (-1 <= l[0] <= 1) and (-1 <= r[0] <= 1):
-#             return r
-#     elif not (-1 <= r[0] <= 1) and (-1 <= l[0] <= 1):
-#             return l
-#     else:
-#         i = np.argmin((
-#             np.linalg.norm(l[1:]),
-#             np.linalg.norm(r[1:])
-#         ))
-#         return (l, r)[i]
 
 def circular_point_projection(
     interpolation: str,
