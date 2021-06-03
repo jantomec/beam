@@ -35,6 +35,20 @@ def __ele_nodes(ele_id, n_nodes_per_ele):
         n_nodes_per_ele*ele_id+j for j in range(n_nodes_per_ele+1)
     ], dtype=int)
 
+def add_mortar_element(elements, possible_contact_partners, dual_basis_functions=False, n_contact_integration_points=None):
+    for element in elements:
+        if n_contact_integration_points is None:
+            n_int = element.n_nodes
+        else:
+            n_int = n_contact_integration_points
+        element.child = elmt.MortarContact(
+            parent_element=element,
+            n_integration_points=n_int,
+            possible_contact_partners=possible_contact_partners,
+            dual_basis_functions=dual_basis_functions
+        )
+        element.child.consider_jacobian = False
+        
 def line_mesh(A, B, n_elements, order, material, reference_vector, starting_node_index=0,
               possible_contact_partners=[], consider_contact_jacobian=False,
               dual_basis_functions=False, n_contact_integration_points=None):
@@ -78,20 +92,6 @@ def line_mesh(A, B, n_elements, order, material, reference_vector, starting_node
             element.child.consider_jacobian = consider_contact_jacobian
         beam.append(element)
     return (coordinates, beam)
-
-def add_mortar_element(elements, possible_contact_partners, dual_basis_functions=False, n_contact_integration_points=None):
-    for element in elements:
-        if n_contact_integration_points is None:
-            n_int = element.n_nodes
-        else:
-            n_int = n_contact_integration_points
-        element.child = elmt.MortarContact(
-            parent_element=element,
-            n_integration_points=n_int,
-            possible_contact_partners=possible_contact_partners,
-            dual_basis_functions=dual_basis_functions
-        )
-        element.child.consider_jacobian = False
 
 def n_point_mesh(points, n_elements, order, material, reference_vector, starting_node_index=0, possible_contact_partners=[], consider_contact_jacobian=False, dual_basis_functions=True):
     """
