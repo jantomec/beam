@@ -6,6 +6,7 @@ from errors import ConvergenceError
 import contact
 import matplotlib.pyplot as plt
 import postprocessing as postproc
+import mathematics as math
 
 class System:
     def __init__(self, coordinates, elements):
@@ -39,6 +40,8 @@ class System:
         self.momentum = [self.compute_momentum()]
         self.kinetic_energy = [self.compute_kinetic_energy()]
         self.potential_energy = [self.compute_potential_energy()]
+        # Gap
+        self.gap_function = []
 
         # Select solver parameters
         self.max_number_of_time_steps = 100
@@ -95,11 +98,6 @@ class System:
         n_nodes = self.get_number_of_nodes()
         n_ele = self.get_number_of_elements()
         
-        # Apply displacement load
-        x = self.unknowns
-        x[:] = 0.0
-        x[:6] = self.displacement_load()
-        
         # Perform Newton-Raphson iteration method to find new balance
         for i in range(self.max_number_of_newton_iterations):
             # Initiate new iteration
@@ -140,13 +138,13 @@ class System:
                 
                 # Solve system of equations by condensing inactive dofs
                 mask = self.__degrees_of_freedom[2].flatten(order='F')
-                x_flat = x.flatten(order='F')
+                x_flat = self.unknowns.flatten(order='F')
                 x_flat[mask] = np.linalg.solve(tangent[mask][:,mask], x_flat[mask])
                 x_flat[~mask] = 0.0
-                x = x_flat.reshape((n_ndof,n_nodes), order='F')
+                self.unknowns = x_flat.reshape((n_ndof,n_nodes), order='F')
 
             # Update nodal beam values
-            self.__displacement[2] += x[:3]
+            self.__displacement[2] += self.unknowns[:3]
             if i == 0:
                 a_new = (
                     (1 - 0.5/self.beta) * self.__acceleration[2] -
@@ -159,38 +157,51 @@ class System:
                 self.__acceleration[2] = a_new
             else:
 
-                iterative_displacement_change = x[:3]
+                iterative_displacement_change = self.unknowns[:3]
                 self.__velocity[2] += self.gamma / (self.time_step * self.beta) * iterative_displacement_change
                 self.__acceleration[2] += 1 / (self.time_step**2 * self.beta) * iterative_displacement_change
             
             # Update integration point beam values
             for ele in self.elements:
                 X = self.coordinates[:,ele.nodes] + self.__displacement[2][:,ele.nodes]
-                ele.update(X, x[3:6,ele.nodes], self.time_step, self.beta, self.gamma, iter0=(i == 0))
+                ele.update(X, self.unknowns[3:6,ele.nodes], self.time_step, self.beta, self.gamma, iter0=(i == 0))
             
             # Update nodal contact values
-            self.__lagrange[2] += x[6]
+            self.__lagrange[2] += self.unknowns[6]
             
             # Update integration point contact values
             for ele in self.elements:
                 try:
                     contact_element = ele.child
-                    contact_element.find_gap(self.coordinates+self.__displacement[2])
+                   
+                    # Compute normals
+                    if i == 0:
+                        # Compute normal at the last converged state
+                        contact_element.perform_nearest_point_projection(self.coordinates+self.__displacement[0])
+                        for g in range(len(contact_element.int_pts)):
+                            contact_element.int_pts[g].converged_n2 = math.normalized(contact_element.int_pts[g].v)
+                    # Compute current normal
+                    contact_element.perform_nearest_point_projection(self.coordinates+self.__displacement[2])
+                    contact_element.compute_normal()
+                    contact_element.compute_gap()
+
                 except AttributeError:
                     pass
             
             # Displacement convergence
             if self.convergence_test_type == "DSP" and i > 0:
-                if self.printing and self.print_residual: print("Displacement", np.linalg.norm(x[:3]))
-                if np.linalg.norm(x[:3]) <= self.tolerance:
+                if self.printing and self.print_residual: print("Displacement", np.linalg.norm(self.unknowns[:3]))
+                if np.linalg.norm(self.unknowns[:3]) <= self.tolerance:
                     if self.printing: print("Time step converged within", i+1, "iterations.")
+                    # Reset unknowns
+                    self.unknowns[:] = 0.0
                     break
             
-            # Reset x
-            x[:] = 0.0
+            # Reset self.unknowns
+            self.unknowns[:] = 0.0
 
             # External forces
-            x[:6] = self.force_load()
+            self.unknowns[:6] = self.force_load()
             Q0 = self.distributed_force_load()
             for (e, ele) in enumerate(self.elements):
                 ele.int_pts[1].q[2] = Q0[e] 
@@ -202,7 +213,7 @@ class System:
                 if c[2] != 0:
                     R += ele.mass_residual(self.__acceleration[2][:,ele.nodes])
                 A = ele.assemb
-                x -= (A @ R).reshape((n_ndof, n_nodes), order='F')
+                self.unknowns -= (A @ R).reshape((n_ndof, n_nodes), order='F')
                 
                 # Contact forces
                 try:
@@ -210,20 +221,35 @@ class System:
                     contact_forces = contact_element.contact_residual(
                         self.coordinates+self.__displacement[2], self.__lagrange[2], n_nodes
                     ).reshape((n_ndof, n_nodes), order='F')
-                    x -= contact_forces
+                    self.unknowns -= contact_forces
                 except AttributeError:
                     pass
             
+            # debug
+            # if self.current_time > 10:
+            #     self.displacement.append(self.__displacement[2].copy())
+            #     self.gap_function.append(self.compute_gap_function())
+            #     L = self.coordinates[0,-1]
+            #     d = 0.02
+            #     plt.plot(self.gap_function[-1][:,0], self.gap_function[-1][:,1])
+            #     plt.hlines(0, xmin=0, xmax=5)
+            #     postproc.line_plot(self, (-d,L+d), (-L/20-d,L/20+d), (-L/20-d,L/20+d), -1, include_initial_state=False)
+            #     print(self.__lagrange[2])
+            #end debug
+
+
             # Residual convergence
             if i == 0:
-                res_norm = np.linalg.norm(x[self.__degrees_of_freedom[2]])
+                res_norm = np.linalg.norm(self.unknowns[self.__degrees_of_freedom[2]])
             else:
-                res_norm = np.linalg.norm(x[:6][self.__degrees_of_freedom[2][:6]])
+                res_norm = np.linalg.norm(self.unknowns[:][self.__degrees_of_freedom[2][:]])
             if self.convergence_test_type == "RES":
                 if self.printing and self.print_residual: print("Residual", res_norm)
                 if res_norm <= self.tolerance:
                     # Newton-Raphson algorithm converged to a new solution
                     if self.printing: print("\tTime step converged within", i+1, "iterations.\n")
+                    # Reset unknowns
+                    self.unknowns[:] = 0.0
                     break
 
         else:
@@ -260,12 +286,12 @@ class System:
                             continue
                     if gap_condition_for_node_p < 0:
                         self.__degrees_of_freedom[2][6,p] = True
-                else:
+                elif self.__degrees_of_freedom[2][6,p] == True:
                     if self.__lagrange[2][p] > 0.0:
                         self.__degrees_of_freedom[2][6,p] = False
                         self.__lagrange[2][p] = 0.0
             active_nodes_changed = np.any(self.__degrees_of_freedom[1][6] != self.__degrees_of_freedom[2][6])
-            
+
             if self.printing and active_nodes_changed: print("\tActive nodes have changed: repeat time step.\n")
             contact_loop_counter += 1
             if contact_loop_counter > self.max_number_of_contact_iterations:
@@ -290,6 +316,10 @@ class System:
                 ele.int_pts[1].q[0] = ele.int_pts[1].q[2]
                 ele.int_pts[1].f[0] = ele.int_pts[1].f[2]
                 ele.int_pts[1].rot[0] = ele.int_pts[1].rot[2]
+            
+            # apply displacement load
+            self.unknowns[:] = 0.0
+            self.unknowns[:6] = self.displacement_load()
             
             if self.time_splitting:
                 split_time_step_size_counter = 0
@@ -337,12 +367,13 @@ class System:
             self.time.append(self.current_time)
             self.kinetic_energy.append(self.compute_kinetic_energy())
             self.potential_energy.append(self.compute_potential_energy())
+            self.gap_function.append(self.compute_gap_function())
 
             if self.current_time >= self.final_time:
                 if self.printing: print("Computation is finished, reached the end of time.")
                 break
     
-    def gap_function(self, axis=0):
+    def compute_gap_function(self, axis=0):
         """
         Return gap function values along one of the main axes.
         """
