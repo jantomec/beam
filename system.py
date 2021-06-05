@@ -17,10 +17,10 @@ class System:
         for ele in self.elements:
             ele.construct_assembly_matrix(self.coordinates.shape[1])
         self.degrees_of_freedom = [np.ones((7,coordinates.shape[1]), dtype=np.bool)]
-        self.degrees_of_freedom[0][6,:] = False  # defualt - no contact at the beginning
+        self.degrees_of_freedom[-1][6,:] = False  # defualt - no contact at the beginning
         
         # Constructing a vector of unknowns for the solver A.x = b
-        self.unknowns = np.zeros_like(self.degrees_of_freedom[0], dtype=np.float)
+        self.unknowns = np.zeros_like(self.degrees_of_freedom[-1], dtype=np.float)
 
         # Constructing matrices of physical fields
         n_nodes = self.coordinates.shape[1]
@@ -226,17 +226,18 @@ class System:
                     pass
             
             # debug
-            # if self.current_time > 10:
+            # if self.current_time >= 9.2:
             #     self.displacement.append(self.__displacement[2].copy())
-            #     self.gap_function.append(self.compute_gap_function())
+            #     self.degrees_of_freedom.append(self.__degrees_of_freedom[2].copy())
             #     L = self.coordinates[0,-1]
             #     d = 0.02
-            #     plt.plot(self.gap_function[-1][:,0], self.gap_function[-1][:,1])
-            #     plt.hlines(0, xmin=0, xmax=5)
             #     postproc.line_plot(self, (-d,L+d), (-L/20-d,L/20+d), (-L/20-d,L/20+d), -1, include_initial_state=False)
+
+            #     self.gap_function.append(self.compute_gap_function())
+            #     plt.plot(self.gap_function[-1][:,0], self.gap_function[-1][:,1], '.')
+            #     plt.hlines(0, xmin=plt.xlim()[0], xmax=plt.xlim()[1])
             #     print(self.__lagrange[2])
             #end debug
-
 
             # Residual convergence
             if i == 0:
@@ -360,6 +361,7 @@ class System:
                 else:
                     self.__newton_loop()
 
+            self.degrees_of_freedom.append(self.__degrees_of_freedom[2].copy())
             self.displacement.append(self.__displacement[2].copy())
             self.velocity.append(self.__velocity[2].copy())
             self.acceleration.append(self.__acceleration[2].copy())
@@ -373,19 +375,23 @@ class System:
                 if self.printing: print("Computation is finished, reached the end of time.")
                 break
     
-    def compute_gap_function(self, axis=0):
+    def compute_gap_function(self):
         """
-        Return gap function values along one of the main axes.
+        Return gap function values along the centreline.
         """
         gaps = []
-        X = self.coordinates + self.displacement[-1]
+        # X = self.coordinates + self.displacement[-1]
+        x0 = 0
         for ele in self.elements:
             try:
                 contact_element = ele.child
-                for g in range(len(contact_element.int_pts)):
-                    x = X[axis,ele.nodes] @ contact_element.N_displacement[:,g]
-                    y = contact_element.int_pts[g].gap
-                    gaps.append([x,y])
+                for g in contact_element.int_pts:
+                    if g.activated:
+                        s = g.loc
+                        x = x0 + (s+1) * contact_element.parent.jacobian
+                        x0 += contact_element.parent.jacobian * 2
+                        y = g.gap
+                        gaps.append([x,y])
             except AttributeError:
                 continue
         gaps = np.array(gaps)
