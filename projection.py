@@ -12,26 +12,31 @@ def nearest_point_projection(
     P: np.ndarray,
     s0: float = 0.0,
     TOLER: float = 1e-9,
-    MAXITER: int = 20
+    MAXITER: int = 30
 ) -> np.ndarray:
 
     n_nodes = len(X[0])
     u = np.zeros((4))
-    u[0] = s0
+    u[-1] = s0
     R = np.ones((4))
+    K = np.zeros((4,4))
+    
     i = 0
     while np.linalg.norm(R) > TOLER and i < MAXITER:
-        K = np.zeros((4,4))
-        R[:3] = P - (
-            (X @ N([u[0]])).flatten() + u[1:]
-        )
-        R[3] = 0 - ((X @ dN([u[0]])).flatten()).dot(u[1:])
-        K[3,0] = ((X @ ddN([u[0]])).flatten()).dot(u[1:])
-        K[:3,0] = (X @ dN([u[0]])).flatten()
-        K[3,1:] = (X @ dN([u[0]])).flatten()
-        K[:3,1:] = np.identity(3)
+        x = X @ N([u[-1]])[:,0]
+        dx = X @ dN([u[-1]])[:,0]
+        ddx = X @ ddN([u[-1]])[:,0]
+        R[:3] = P - (x + u[:3])
+        R[3] = 0 - dx.dot(u[:3])
+
+        K[:3,:3] = np.identity(3)
+        K[:3,-1] = dx
+        K[-1,:3] = dx
+        K[-1,-1] = ddx.dot(u[:3])
+        
         u += np.linalg.solve(K, R)
         i+= 1
+        
     if i == MAXITER:
         raise ConvergenceError("Projection did not converge.")
     return u
