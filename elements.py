@@ -4,7 +4,7 @@ import mathematics as math
 import projection as proj
 import interpolation as intp
 import contact
-from errors import ConvergenceError, MeshError, ProjectionError
+from errors import ConvergenceError, MaterialError
 
 
 class Element:
@@ -37,18 +37,10 @@ class SimoBeam(Element):
         mesh_dof_per_node: int,
         ref_vec: np.ndarray,
         coordinates: np.ndarray,
+        material,
         angular_velocities: np.ndarray = None,
         angular_accelerations: np.ndarray = None,
         distributed_load: np.ndarray = np.zeros(shape=(6)),
-        area: float = 1.0,
-        density: float = 0.0,
-        elastic_modulus: float = 1.0,
-        shear_modulus: float = 1.0,
-        inertia_primary: float = 1.0,
-        inertia_secondary: float = None,
-        inertia_torsion: float = None,
-        shear_coefficient: float = 1,
-        contact_radius: float = 1,
         displacement_interpolation: str = "Lagrange polynomials"
     ):
         # --------------------------------------------------------------
@@ -63,10 +55,6 @@ class SimoBeam(Element):
             angular_velocities = np.zeros(shape=(3,self.n_nodes))
         if angular_accelerations is None:
             angular_accelerations = np.zeros(shape=(3,self.n_nodes))
-        if inertia_secondary is None:
-            inertia_secondary = inertia_primary
-        if inertia_torsion is None:
-            inertia_torsion = inertia_primary
 
         # --------------------------------------------------------------
         # displacement interpolation
@@ -162,18 +150,7 @@ class SimoBeam(Element):
 
         # --------------------------------------------------------------
         # element properties
-        self.prop = struct.BeamElementProperties(
-            length=L,
-            area=area,
-            density=density,
-            elastic_modulus=elastic_modulus,
-            shear_modulus=shear_modulus,
-            inertia_primary=inertia_primary,
-            inertia_secondary=inertia_secondary,
-            inertia_torsion=inertia_torsion,
-            shear_coefficient=shear_coefficient,
-            contact_radius=contact_radius
-        )
+        self.prop = struct.BeamElementProperties(L, material)
 
     def disp_shape_fun(self, int_points_locations):
         return intp.lagrange_polynomial(self.n_nodes-1, int_points_locations)
@@ -578,12 +555,19 @@ class MortarContact(Element):
                         candidate.Ndis[2],
                         X[:,candidate.nodes], x1[:,g]
                     )
+                    if np.linalg.norm(projection[:3]) < 0.27 and -1 <= projection[-1] <= 1:
+                        projection = proj.nearest_point_projection(
+                            candidate.Ndis[0],
+                            candidate.Ndis[1],
+                            candidate.Ndis[2],
+                            X[:,candidate.nodes], x1[:,g]
+                        )
                     projections_all.append(projection)
                 except ConvergenceError:
                     projections_all.append(np.ones(4)*np.inf)
 
             projections_within_domain = [
-                i for i in range(len(projections_all)) if -1 < projections_all[i][0] and projections_all[i][0] < 1
+                i for i in range(len(projections_all)) if -1 <= projections_all[i][-1] <= 1
             ]
 
             if len(projections_within_domain) == 0:
@@ -593,7 +577,7 @@ class MortarContact(Element):
             filtered_projections = [projections_all[i] for i in projections_within_domain]
             filtered_candidates = [candidate_elements[i] for i in projections_within_domain]
             
-            distances = np.array([np.linalg.norm(pr[1:]) for pr in filtered_projections])
+            distances = np.array([np.linalg.norm(pr[:3]) for pr in filtered_projections])
             selected = np.argmin(distances)
             self.int_pts[g].activated = True
             self.int_pts[g].partner = filtered_candidates[selected]
@@ -603,14 +587,17 @@ class MortarContact(Element):
             partner = self.int_pts[g].partner
             N1 = self.N_displacement[:,g]
             x1 = X[:,self.parent.nodes] @ N1
-            v = proj.nearest_point_projection(
-                partner.Ndis[0],
-                partner.Ndis[1],
-                partner.Ndis[2],
-                X[:,partner.nodes], x1
-            )
-            self.int_pts[g].s2 = v[0]
-            self.int_pts[g].v = v[1:]
+            try:
+                v = proj.nearest_point_projection(
+                    partner.Ndis[0],
+                    partner.Ndis[1],
+                    partner.Ndis[2],
+                    X[:,partner.nodes], x1
+                )
+            except ConvergenceError:
+                continue
+            self.int_pts[g].s2 = v[-1]
+            self.int_pts[g].v = v[:3]
     
     def compute_normal(self):
         for g in range(len(self.int_pts)):
@@ -618,7 +605,10 @@ class MortarContact(Element):
             self.int_pts[g].n2 = self.int_pts[g].sigma * math.normalized(self.int_pts[g].v)
     
     def compute_gap(self):
-        r1 = self.parent.prop.cr
+        try:
+            r1 = self.parent.prop.cr
+        except AttributeError:
+            raise MaterialError("The following data is missing in material specification: 'Contact radius'.")
         for g in range(len(self.int_pts)):
             r2 = self.int_pts[g].partner.prop.cr
             self.int_pts[g].gap = self.int_pts[g].v @ self.int_pts[g].n2 - r1 - r2
