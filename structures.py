@@ -7,38 +7,171 @@ class BeamElementProperties:
     def __init__(
         self,
         length: float,
-        area: float,
-        density: float,
-        elastic_modulus: float,
-        shear_modulus: float,
-        inertia_primary: float,
-        inertia_secondary: float,
-        inertia_torsion: float,
-        shear_coefficient: float,
-        contact_radius: float
+        material,
     ):
-        self.L = length
-        self.A = area
-        self.rho = density
-        self.E = elastic_modulus
-        self.G = shear_modulus
-        self.I1 = inertia_primary
-        self.I2 = inertia_secondary
-        self.It = inertia_torsion
-        self.ks = shear_coefficient
-        self.cr = contact_radius
+        
+        # prepare empty values
         self.C = np.zeros(shape=(6,6))
-        self.C[0,0] = self.E * self.A
-        self.C[1,1] = self.G * self.A
-        self.C[2,2] = self.G * self.A
-        self.C[3,3] = self.G * self.It
-        self.C[4,4] = self.E * self.I1
-        self.C[5,5] = self.E * self.I2
-        self.Arho = area * density
+        self.Arho = 0
         self.Irho = np.zeros(shape=(3,3))
-        self.Irho[0,0] = self.rho * (self.I1 + self.I2)
-        self.Irho[1,1] = self.rho * self.I1
-        self.Irho[2,2] = self.rho * self.I2
+
+        try:
+            E = material['Elastic modulus']
+        except KeyError:
+            pass
+        
+        try:
+            A = material['Area']
+        except KeyError:
+            pass
+        
+        try:
+            G = material['Shear modulus']
+        except KeyError:
+            pass
+
+        try:
+            nu = material['Poisson coefficient']
+        except KeyError:
+            pass
+
+        try:
+            ks1 = material['Shear coefficient primary']
+        except KeyError:
+            pass
+
+        try:
+            ks2 = material['Shear coefficient secondary']
+        except KeyError:
+            pass
+
+        try:
+            It = material['Inertia torsion']
+        except KeyError:
+            pass
+
+        try:
+            I1 = material['Inertia primary']
+        except KeyError:
+            pass
+
+        try:
+            I2 = material['Inertia secondary']
+        except KeyError:
+            pass
+        
+        try:
+            rho = material['Density']
+        except KeyError:
+            pass
+
+        try:
+            rho = material['Density']
+        except KeyError:
+            pass
+
+        try:
+            self.cr = material['Contact radius']
+        except KeyError:
+            pass
+        
+        # tension stiffness
+        try:
+            self.C[0,0] = material["EA"]
+        except KeyError:
+            try:
+                self.C[0,0] = E * A
+            except:
+                raise errors.MaterialError("One of the following data is missing in material specification: 'EA', 'Area' or 'Elastic modulus'.")
+            
+        
+        # shear stiffness - primary axis
+        try:
+            self.C[1,1] = material["GA1"]
+        except KeyError:
+            try:
+                self.C[1,1] = G * A * ks1
+            except:
+                try:
+                    self.C[1,1] = E / (2*(1+nu)) * A * ks1
+                except:
+                    raise errors.MaterialError("One of the following data is missing in material specification: 'GA1', 'Shear modulus', 'Poisson coefficient' or 'Shear coefficient primary'.")
+
+        # shear stiffness - secondary axis
+        try:
+            self.C[2,2] = material["GA2"]
+        except KeyError:
+            try:
+                self.C[2,2] = G * A * ks2
+            except:
+                try:
+                    self.C[2,2] = E / (2*(1+nu)) * A * ks2
+                except:
+                    raise errors.MaterialError("One of the following data is missing in material specification: 'GA1', 'Shear modulus', 'Poisson coefficient' or 'Shear coefficient secondary'.")
+
+        # torsion stiffness
+        try:
+            self.C[3,3] = material["GIt"]
+        except KeyError:
+            try:
+                self.C[3,3] = G * It
+            except:
+                raise errors.MaterialError("One of the following data is missing in material specification: 'GIt' or 'Inertia torsion'.")
+
+        # bending stiffness - primary axis
+        try:
+            self.C[4,4] = material["EI1"]
+        except KeyError:
+            try:
+                self.C[4,4] = E * I1
+            except:
+                raise errors.MaterialError("One of the following data is missing in material specification: 'EI1' or 'Inertia primary'.")
+            
+        # bending stiffness - secondary axis
+        try:
+            self.C[5,5] = material["EI2"]
+        except KeyError:
+            try:
+                self.C[5,5] = E * I2
+            except:
+                raise errors.MaterialError("One of the following data is missing in material specification: 'EI2' or 'Inertia secondary'.")
+            
+        
+        # translational inertia
+        try:
+            self.Arho = material["Arho"]
+        except KeyError:
+            try:
+                self.Arho = A * rho
+            except:
+                raise errors.MaterialError("One of the following data is missing in material specification: 'Arho' or 'Density'.")
+        
+        # deviatoric inertia
+        try:
+            self.Irho[0,0] = material["I12rho"]
+        except KeyError:
+            try:
+                self.Irho[0,0] = rho * (I1 + I2)
+            except:
+                raise errors.MaterialError("One of the following data is missing in material specification: 'Density', 'Inertia primary' or 'Inertia secondary'.")
+        
+        # rotational inertia primary
+        try:
+            self.Irho[1,1] = material["I1rho"]
+        except KeyError:
+            try:
+                self.Irho[1,1] = rho * I1
+            except:
+                raise errors.MaterialError("One of the following data is missing in material specification: 'Density', or 'Inertia primary'.")
+        
+        # rotational inertia secondary
+        try:
+            self.Irho[2,2] = material["I2rho"]
+        except KeyError:
+            try:
+                self.Irho[2,2] = rho * I2
+            except:
+                raise errors.MaterialError("One of the following data is missing in material specification: 'Density' or 'Inertia secondary'.")
 
 
 class BeamIntegrationPoint:
