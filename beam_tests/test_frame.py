@@ -26,14 +26,17 @@ def case():
     """
     
     mat = {
-        'area':1000.0,
-        'elastic_modulus':1000.0,
-        'shear_modulus':1000.0,
-        'inertia_primary':1.0,
-        'inertia_secondary':1.0,
-        'inertia_torsion':1.0,
-        'density':10.0,
-        'contact_radius':1.0
+        'Area':1000.0,
+        'Elastic modulus':1000.0,
+        'Shear modulus':1000.0,
+        'Inertia primary':1.0,
+        'Inertia secondary':1.0,
+        'Inertia torsion':1.0,
+        'Shear coefficient primary':1.0,
+        'Shear coefficient secondary':1.0,
+        'Density':10.0,
+        'Contact radius':1.0,
+        'Arho':1.0  # Arho overrides A*rho
     }
     
     points = np.array([[0, 0, 10],

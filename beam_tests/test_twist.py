@@ -26,20 +26,25 @@ def case1():
     """
     
     mat = {
-        'area':0.000314159,
-        'elastic_modulus':1.0e9,
-        'shear_modulus':0.3846e9,
-        'inertia_primary':7.85398e-9,
-        'inertia_secondary':7.85398e-9,
-        'inertia_torsion':1.5708e-8,
-        'density':8.0e-7,
-        'contact_radius':0.01
+        'EA':np.pi*1.0e2,
+        'GA1':1.2083e2,
+        'GA2':1.2083e2,
+        'GIt':6.03846,
+        'EI1':7.85398,
+        'EI2':7.85398,
+        'Arho':1.0,
+        'I12rho':1.0,
+        'I1rho':1.0,
+        'I2rho':1.0,
+        'Contact radius':0.01
     }
     
     (coordinates1, elements1) = mesh.line_mesh(A=(0,0,0.02), B=(5,0,0.02), n_elements=4, order=2, material=mat, reference_vector=(0,0,1))
     (coordinates2, elements2) = mesh.line_mesh(A=(0,0,-0.02), B=(5,0,-0.02), n_elements=4, order=2, material=mat, reference_vector=(0,0,1),
-                                               starting_node_index=coordinates1.shape[1], possible_contact_partners=elements1, dual_basis_functions=False)
-    
+                                               starting_node_index=coordinates1.shape[1])
+   
+    mesh.add_mortar_element(elements2, possible_contact_partners=elements1, n_contact_integration_points=10)
+
     coordinates = np.hstack((coordinates1, coordinates2))
     elements = elements1 + elements2
     system = System(coordinates, elements)
@@ -90,8 +95,8 @@ def case2():
         'contact_radius':0.01
     }
     
-    (coordinates1, elements1) = mesh.line_mesh(A=(0,0,0.02), B=(5,0,0.02), n_elements=30, order=1, material=mat, reference_vector=(0,0,1))
-    (coordinates2, elements2) = mesh.line_mesh(A=(0,0,-0.02), B=(5,0,-0.02), n_elements=30, order=1, material=mat, reference_vector=(0,0,1),
+    (coordinates1, elements1) = mesh.line_mesh(A=(0,0,0.02), B=(5,0,0.02), n_elements=10, order=1, material=mat, reference_vector=(0,0,1))
+    (coordinates2, elements2) = mesh.line_mesh(A=(0,0,-0.02), B=(5,0,-0.02), n_elements=10, order=1, material=mat, reference_vector=(0,0,1),
                                                starting_node_index=coordinates1.shape[1])
     
     mesh.add_mortar_element(elements2, possible_contact_partners=elements1, n_contact_integration_points=10)
@@ -134,7 +139,7 @@ def case2():
 
 def main():
     np.set_printoptions(linewidth=10000, edgeitems=2000)
-    system = case2()
+    system = case1()
     system.solve()
     
     L = system.coordinates[0,-1]

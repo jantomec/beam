@@ -26,14 +26,16 @@ def case1():
     """
     
     mat = {
-        'area':1.0,
-        'elastic_modulus':1.0,
-        'shear_modulus':1.0,
-        'inertia_primary':2.0,
-        'inertia_secondary':1.0,
-        'inertia_torsion':1.0,
-        'density':1.0,
-        'contact_radius':1.0
+        'Area':1.0,
+        'Elastic modulus':1.0,
+        'Shear modulus':1.0,
+        'Inertia primary':2.0,
+        'Inertia secondary':1.0,
+        'Inertia torsion':1.0,
+        'Shear coefficient primary':1.0,
+        'Shear coefficient secondary':1.0,
+        'Density':1.0,
+        'Contact radius':1.0
     }
     
     (coordinates, elements) = mesh.line_mesh(A=(0,0,0), B=(1,0,0), n_elements=5, order=1, material=mat, reference_vector=(0,0,1))
@@ -62,14 +64,16 @@ def case2():
     """
     
     mat = {
-        'area':20.0,
-        'elastic_modulus':1.0,
-        'shear_modulus':10.0,
-        'inertia_primary':2.0,
-        'inertia_secondary':1.0,
-        'inertia_torsion':1.0,
-        'density':1.0,
-        'contact_radius':1.0
+        'Area':20.0,
+        'Elastic modulus':1.0,
+        'Shear modulus':10.0,
+        'Inertia primary':2.0,
+        'Inertia secondary':1.0,
+        'Inertia torsion':1.0,
+        'Shear coefficient primary':1.0,
+        'Shear coefficient secondary':1.0,
+        'Density':1.0,
+        'Contact radius':1.0
     }
     
     (coordinates, elements) = mesh.line_mesh(A=(0,0,0), B=(1,0,0), n_elements=5, order=1, material=mat, reference_vector=(0,0,1))

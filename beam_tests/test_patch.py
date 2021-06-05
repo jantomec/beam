@@ -28,14 +28,16 @@ def case():
     """
     
     mat = {
-        'area':7.85398e-5,
-        'elastic_modulus':1.0e9,
-        'shear_modulus':0.3846e9,
-        'inertia_primary':4.90874e-10,
-        'inertia_secondary':4.90874e-10,
-        'inertia_torsion':9.81748e-10,
-        'density':8.0e-7,
-        'contact_radius':0.005
+        'Area':7.85398e-5,
+        'Elastic modulus':1.0e9,
+        'Shear modulus':0.3846e9,
+        'Inertia primary':4.90874e-10,
+        'Inertia secondary':4.90874e-10,
+        'Inertia torsion':9.81748e-10,
+        'Shear coefficient primary':1.0,
+        'Shear coefficient secondary':1.0,
+        'Density':8.0e-7,
+        'Contact radius':0.005
     }
     
     (coordinates1, elements1) = mesh.line_mesh(A=(0,0,0), B=(2.0,0,0), n_elements=3, order=1, material=mat, reference_vector=(0,0,1))
