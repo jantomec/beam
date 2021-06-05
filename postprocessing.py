@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import contact
 
-def line_plot(system, xlim, ylim, zlim, time_step, include_initial_state=True, savefig=False):
+def line_plot(system, xlim, ylim, zlim, time_step, include_initial_state=True, savefig=False, camera=None):
     i = time_step
     beams_id = contact.identify_entities(system.elements)
     beams = []
@@ -34,6 +34,12 @@ def line_plot(system, xlim, ylim, zlim, time_step, include_initial_state=True, s
         w0 = z0 + system.displacement[i][2][nodes]
         ax.plot3D(u0, v0, w0, '.', color=color_map(b))
 
+        boundary_conditions = []
+        for j in range(system.degrees_of_freedom[i][:,nodes].shape[1]):
+            if np.any(~system.degrees_of_freedom[i][:,nodes][:6,j]):
+                boundary_conditions.append(j)
+        ax.plot3D(u0[boundary_conditions], v0[boundary_conditions], w0[boundary_conditions], '.', color='black')
+
         for ele in beam:
             N = ele.Ndis[0](np.linspace(-1,1,n_plot_points_for_each_element))
             x = system.coordinates[:,ele.nodes] @ N
@@ -43,9 +49,14 @@ def line_plot(system, xlim, ylim, zlim, time_step, include_initial_state=True, s
             ax.plot3D(u[0], u[1], u[2], '-', color=color_map(b), alpha=0.5)
             # ax.plot3D(u[0], u[1], u[2], '-', linewidth=6.0, color=color_map(b), alpha=0.5)
     
+    if camera is not None:
+        ax.view_init(elev=camera[1], azim=camera[0])
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
     ax.set_zlim(zlim)
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    ax.set_zlabel("z")
     if savefig:
         plt.savefig('image'+str(time_step)+'.png')
     else:
