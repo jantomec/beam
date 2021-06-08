@@ -16,7 +16,7 @@ def line_plot(system, xlim, ylim, zlim, time_step, include_initial_state=True, s
     
     fig = plt.figure()
     ax = plt.axes(projection='3d')
-    ax.set_title('Time ' + str(system.time[i]))
+    ax.set_title('Time ' + str(np.round(system.time[i], 3)))
     
     n_plot_points_for_each_element = 20
 
@@ -62,8 +62,53 @@ def line_plot(system, xlim, ylim, zlim, time_step, include_initial_state=True, s
     else:
         plt.show()
 
-def gap_plot(system):
-    return
+def gap_plot(system, time_step, savefig=False):
+    i = time_step
+    plt.title('Time ' + str(np.round(system.time[i], 3)))
+    plt.plot(system.gap_function[i][:,0], system.gap_function[i][:,1], '.')
+    plt.xlabel('s')
+    plt.ylabel('gap')
+    plt.hlines(0, xmin=plt.xlim()[0], xmax=plt.xlim()[1])
+    if savefig:
+        plt.savefig('gap_function-'+str(time_step)+'.png')
+    else:
+        plt.show()
+
+def contact_force_plot(system, time_step, savefig=False, color=None):
+    """
+    Return gap function values along the centreline.
+    """
+    i = time_step
+    f = []
+    x0 = 0
+    for ele in system.elements:
+        try:
+            contact_element = ele.child
+            sdom = np.linspace(-1,1)
+            for s in sdom:
+                x = x0 + (s+1) * contact_element.parent.jacobian
+                Phi1 = contact_element.Nlam[0](s)
+                lam = system.lagrange[i][contact_element.parent.nodes] @ Phi1
+                f.append([x,lam])
+            x0 += contact_element.parent.jacobian * 2
+        except AttributeError:
+            continue
+    f = np.array(f)
+
+    plt.title('Time ' + str(np.round(system.time[i], 3)))
+    if color is None:
+        plt.plot(f[:,0], f[:,1], '-')
+    else:
+        plt.plot(f[:,0], f[:,1], '-', color=color, label=str(int(system.get_number_of_elements()/2))+" elements")
+        plt.legend()
+    plt.xlabel('s')
+    plt.xlim((f[0,0], f[-1,0]))
+    plt.ylabel('contact force')
+    plt.hlines(0, xmin=plt.xlim()[0], xmax=plt.xlim()[1])
+    if savefig:
+        plt.savefig('force_function-'+str(time_step)+'.png')
+    else:
+        plt.show()
 
 def energy_plot(system):
     t = np.array(system.time)
