@@ -41,7 +41,19 @@ class System:
         self.kinetic_energy = [self.compute_kinetic_energy()]
         self.potential_energy = [self.compute_potential_energy()]
         # Gap
-        self.gap_function = []
+        for ele in self.elements:
+            try:
+                contact_element = ele.child
+                contact_element.find_partner(self.coordinates)
+                contact_element.perform_nearest_point_projection(self.coordinates)
+                for g in range(len(contact_element.int_pts)):
+                    contact_element.int_pts[g].converged_n2 = math.normalized(contact_element.int_pts[g].v)
+                contact_element.compute_normal()
+                contact_element.compute_gap()
+                
+            except AttributeError:
+                pass
+        self.gap_function = [self.compute_gap_function()]
 
         # Select solver parameters
         self.max_number_of_time_steps = 100
@@ -245,7 +257,7 @@ class System:
             else:
                 res_norm = np.linalg.norm(self.unknowns[:][self.__degrees_of_freedom[2][:]])
             if self.convergence_test_type == "RES":
-                if self.printing and self.print_residual: print("Residual", res_norm)
+                if self.printing and self.print_residual: print("Iteration:", i, "\tResidual:", res_norm)
                 if res_norm <= self.tolerance:
                     # Newton-Raphson algorithm converged to a new solution
                     if self.printing: print("\tTime step converged within", i+1, "iterations.\n")
@@ -265,12 +277,13 @@ class System:
                 contact_element.find_partner(self.coordinates+self.__displacement[2])
             except AttributeError:
                 pass
-
+                    
         contact_loop_counter = 0
         while active_nodes_changed:
             active_nodes_changed = False
             # Newton-Raphson method converged to a new solution
             self.__newton_loop()
+            self.__degrees_of_freedom[0] = self.__degrees_of_freedom[1]
             self.__degrees_of_freedom[1] = self.__degrees_of_freedom[2]
 
             # Check contact conditions
@@ -291,8 +304,10 @@ class System:
                     if self.__lagrange[2][p] > 0.0:
                         self.__degrees_of_freedom[2][6,p] = False
                         self.__lagrange[2][p] = 0.0
-            active_nodes_changed = np.any(self.__degrees_of_freedom[1][6] != self.__degrees_of_freedom[2][6])
-
+            active_nodes_changed = (
+                np.any(self.__degrees_of_freedom[1][6] != self.__degrees_of_freedom[2][6])
+                and np.any(self.__degrees_of_freedom[0][6] != self.__degrees_of_freedom[2][6])
+            )
             if self.printing and active_nodes_changed: print("\tActive nodes have changed: repeat time step.\n")
             contact_loop_counter += 1
             if contact_loop_counter > self.max_number_of_contact_iterations:
@@ -308,7 +323,6 @@ class System:
             self.__velocity[0] = self.__velocity[2]
             self.__acceleration[0] = self.__acceleration[2]
             self.__lagrange[0] = self.__lagrange[2]
-            self.__degrees_of_freedom[0] = self.__degrees_of_freedom[2]
             for ele in self.elements:
                 ele.int_pts[0].w[0] = ele.int_pts[0].w[2]
                 ele.int_pts[0].a[0] = ele.int_pts[0].a[2]
@@ -340,7 +354,7 @@ class System:
                         self.__velocity[2] = self.__velocity[0]
                         self.__acceleration[2] = self.__acceleration[0]
                         self.__lagrange[2] = self.__lagrange[0]
-                        self.__degrees_of_freedom[2] = self.__degrees_of_freedom[0]
+                        self.__degrees_of_freedom[2] = self.degrees_of_freedom[-1]
                         for ele in self.elements:
                             ele.int_pts[0].w[2] = ele.int_pts[0].w[0]
                             ele.int_pts[0].a[2] = ele.int_pts[0].a[0]
@@ -380,7 +394,6 @@ class System:
         Return gap function values along the centreline.
         """
         gaps = []
-        # X = self.coordinates + self.displacement[-1]
         x0 = 0
         for ele in self.elements:
             try:
