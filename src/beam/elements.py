@@ -1,10 +1,10 @@
 import numpy as np
-import structures as struct
-import mathematics as math
-import projection as proj
-import interpolation as intp
-import contact
-from errors import ConvergenceError, MaterialError
+from beam import structures as struct
+from beam import mathematics as math
+from beam import projection as proj
+from beam import interpolation as intp
+from beam import contact
+from beam.errors import ConvergenceError, MaterialError
 
 
 class Element:
@@ -363,7 +363,7 @@ class SimoBeam(Element):
         for g in range(self.int_pts[0].n_pts):
             for i in range(self.n_nodes):
                 for j in range(self.n_nodes):
-                    m11 = (
+                    m11 = self.prop.Arho * (
                         np.identity(3) * 
                         self.int_pts[0].N_displacement[i,g] *
                         self.int_pts[0].N_displacement[j,g]

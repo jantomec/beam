@@ -1,12 +1,11 @@
 import numpy as np
-from typing import Callable
-import interpolation as intp
-from errors import ConvergenceError
+from beam.errors import ConvergenceError
+from beam import mathematics as math
 
-import contact
+# debug only
 import matplotlib.pyplot as plt
-import postprocessing as postproc
-import mathematics as math
+from beam import postprocessing as postproc
+
 
 class System:
     def __init__(self, coordinates, elements):
@@ -304,13 +303,11 @@ class System:
                     if self.__lagrange[2][p] > 0.0:
                         self.__degrees_of_freedom[2][6,p] = False
                         self.__lagrange[2][p] = 0.0
-            active_nodes_changed = (
-                np.any(self.__degrees_of_freedom[1][6] != self.__degrees_of_freedom[2][6])
-                and np.any(self.__degrees_of_freedom[0][6] != self.__degrees_of_freedom[2][6])
-            )
+            active_nodes_changed = np.any(self.__degrees_of_freedom[1][6] != self.__degrees_of_freedom[2][6])
             if self.printing and active_nodes_changed: print("\tActive nodes have changed: repeat time step.\n")
             contact_loop_counter += 1
             if contact_loop_counter > self.max_number_of_contact_iterations:
+                # if troubles with convergence, simply replace raise with break
                 raise ConvergenceError("Contact: Maximum number of contact iterations reached without convergence!")
 
     def __time_loop(self):
@@ -399,17 +396,44 @@ class System:
             try:
                 contact_element = ele.child
                 for g in contact_element.int_pts:
-                    if g.activated:
-                        s = g.loc
-                        x = x0 + (s+1) * contact_element.parent.jacobian
-                        x0 += contact_element.parent.jacobian * 2
-                        y = g.gap
-                        gaps.append([x,y])
+                    try:
+                        if g.activated:
+                            s = g.loc
+                            x = x0 + (s+1) * contact_element.parent.jacobian
+                            y = g.gap
+                            gaps.append([x,y])
+                    except:
+                        continue
+                x0 += contact_element.parent.jacobian * 2
             except AttributeError:
                 continue
         gaps = np.array(gaps)
         return gaps
     
+    def contact_force_function(self, time_step, int_only=False):
+        """
+        Return contact force function values along the centreline.
+        """
+        i = time_step
+        f = []
+        x0 = 0
+        for ele in self.elements:
+            try:
+                contact_element = ele.child
+                if int_only:
+                    sdom = [contact_element.int_pts[ig].loc for ig in range(len(contact_element.int_pts))]
+                else:
+                    sdom = np.linspace(-1,1)
+                for s in sdom:
+                    x = x0 + (s+1) * contact_element.parent.jacobian
+                    Phi1 = contact_element.Nlam[0](s)
+                    lam = self.lagrange[i][contact_element.parent.nodes] @ Phi1
+                    f.append([x,lam])
+                x0 += contact_element.parent.jacobian * 2
+            except AttributeError:
+                continue
+        return np.array(f)
+
     def compute_momentum(self):
         p = np.zeros(6)
         for ele in self.elements:

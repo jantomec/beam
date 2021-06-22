@@ -1,36 +1,22 @@
-import os
-import sys
-
-cwd = os.getcwd()
-folder = os.path.basename(cwd)
-while folder != "beam":
-    cwd = os.path.dirname(cwd)
-    folder = os.path.basename(cwd)
-    if len(cwd) == 0:
-        print("Root directory was not found. Try inserting the path manually with 'sys.path.insert(0, absolute_path_to_root)'")
-        sys.exit()
-print("Root directory:", cwd)
-sys.path.insert(0, cwd)
-
 import functools
 import numpy as np
-from system import System
-import mesh
-import postprocessing as postproc
+from beam.system import System
+from beam import mesh
+from beam import postprocessing as postproc
 import matplotlib.pyplot as plt
 
 
-def case1(nele):
+def case1(nele, nint):
     """
     In this example, one cantilever beam is bent towards another.
     Contact, static analysis.
     """
     
     mat = {
-        'EA':np.pi*1.0e2,
-        'GA1':1.2083e2,
-        'GA2':1.2083e2,
-        'GIt':6.03846,
+        'EA':np.pi*1.0e5,
+        'GA1':1.2083e5,
+        'GA2':1.2083e5,
+        'GIt':6.04158,
         'EI1':7.85398,
         'EI2':7.85398,
         'Arho':1.0,
@@ -50,16 +36,17 @@ def case1(nele):
             pce = elements1[:neighbouring_elements+1]
         else:
             pce = elements1[i2-neighbouring_elements:i2+neighbouring_elements]
-        mesh.add_mortar_element([ele], possible_contact_partners=pce)
+        mesh.add_mortar_element([ele], possible_contact_partners=pce, n_contact_integration_points=nint)
 
     coordinates = np.hstack((coordinates1, coordinates2))
     elements = elements1 + elements2
     system = System(coordinates, elements)
     system.time_step = 1.0
     system.max_number_of_time_steps = 1000
-    system.max_number_of_contact_iterations = 30
+    system.max_number_of_contact_iterations = 50
     system.final_time = 9.0
     system.solver_type = 'static'
+    system.tolerance = 1e-6
     system.convergence_test_type = 'RES'
     system.contact_detection = True
     system.print_residual = True
@@ -75,7 +62,9 @@ def case1(nele):
             Q[2,coordinates1.shape[1]-1] = 0.01*(np.cos(freq*t) - np.cos(freq*(t - self.time_step)))
             Q[1,-1] = -0.01*(np.sin(freq*t) - np.sin(freq*(t - self.time_step)))
             Q[2,-1] = -0.01*(np.cos(freq*t) - np.cos(freq*(t - self.time_step)))
-        
+        else:
+            Q[0,coordinates1.shape[1]-1] = 0.04967
+            Q[0,-1] = 0.04967
         return Q
 
     
@@ -94,10 +83,10 @@ def case2(nele):
     """
     
     mat = {
-        'EA':np.pi*1.0e2,
+        'EA':np.pi*1.0e5,
         'GA1':1.2083e2,
         'GA2':1.2083e2,
-        'GIt':6.03846,
+        'GIt':6.04158,
         'EI1':7.85398,
         'EI2':7.85398,
         'Arho':1.0,
@@ -158,25 +147,43 @@ def case2(nele):
 
 def main():
     np.set_printoptions(linewidth=10000, edgeitems=2000)
-    system11 = case2(10)
+    system11 = case1(8, 8)
     system11.solve()
-    system12 = case2(20)
+    system12 = case1(16, 8)
     system12.solve()
-    system13 = case2(40)
-    system13.solve()
-    L = 5.0
-    d = 0.02
-    postproc.contact_force_plot(system11, -1, savefig=True, color='tab:blue')
-    postproc.contact_force_plot(system12, -1, savefig=True, color='tab:orange')
-    postproc.contact_force_plot(system13, -1, savefig=True, color='tab:green')
-    plt.close()
-    # for i in range(0, len(system.time), 1):
-    #     postproc.line_plot(system, (-d,L+d), (-L/20-d,L/20+d), (-L/20-d,L/20+d), i, include_initial_state=False, savefig=False, camera=None)
-    #     postproc.gap_plot(system, i)
-    #     postproc.contact_force_plot(system, i, savefig=False)
-    # postproc.line_plot(system, (-d,L+d), (-L/20-d,L/20+d), (-L/20-d,L/20+d), -1, include_initial_state=False, savefig=True, camera=None)
-    # postproc.gap_plot(system, -1, savefig=True)
-    # postproc.contact_force_plot(system, -1, savefig=True)
+    # system13 = case1(32, 8)
+    # system13.solve()
+    
+    plt.rcParams.update({
+        "text.usetex": True,
+        "font.family": "sans-serif",
+        "font.sans-serif": ["Helvetica"],
+        "font.size": 20
+    })
+    fig = plt.figure(tight_layout=True)
+    ax = fig.add_subplot(111)
+    f1 = system11.lagrange[-1][len(system11.lagrange[-1])//2:]
+    f2 = system12.lagrange[-1][len(system12.lagrange[-1])//2:]
+    # f3 = system13.lagrange[-1][len(system13.lagrange[-1])//2:]
+    x1 = np.linspace(0, 5, len(f1))
+    x2 = np.linspace(0, 5, len(f2))
+    # x3 = np.linspace(0, 5, len(f3))
+    ax.plot(x1, f1, ".", label='8 elements')
+    ax.plot(x2, f2, "^", label='16 elements')
+    # ax.plot(x3, f3, "s", label='32 elements')
+    ax.set_xlim((x1[0], x1[-1]))
+    ax.set_xlabel('s')
+    ax.set_ylabel('$\lambda$')
+    ax.legend()
+    #plt.savefig("img2.pdf", bbox_inches='tight')
+    plt.show()
+
+    # L = 5.0
+    # d = 0.02
+    # postproc.line_plot(system11, (-d,L+d), (-L/20-d,L/20+d), (-L/20-d,L/20+d), -1, include_initial_state=False, savefig=False, camera=None)
+    # raw_data = postproc.line_plot_raw_data(system11, -1)
+    # np.savetxt('data1.txt', raw_data[0])
+    # np.savetxt('data2.txt', raw_data[1])
 
 if __name__ == "__main__":
     main()

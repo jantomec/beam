@@ -1,7 +1,7 @@
 import numpy as np
-import interpolation as intp
 from scipy import optimize
-from errors import ConvergenceError
+from beam import interpolation as intp
+from beam.errors import ConvergenceError
 
 
 def nearest_point_projection(

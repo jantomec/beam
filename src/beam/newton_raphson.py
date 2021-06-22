@@ -1,5 +1,5 @@
 import numpy as np
-import elements as el
+from beam import elements as el
 
 
 def assemble_tangent(

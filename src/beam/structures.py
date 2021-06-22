@@ -1,6 +1,6 @@
 import numpy as np
-import interpolation as intp
-import errors
+from beam import interpolation as intp
+from beam import errors
 
 
 class BeamElementProperties:

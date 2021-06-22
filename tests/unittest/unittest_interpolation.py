@@ -1,21 +1,6 @@
-import os
-import sys
-
-cwd = os.getcwd()
-folder = os.path.basename(cwd)
-while folder != "beam":
-    cwd = os.path.dirname(cwd)
-    folder = os.path.basename(cwd)
-    if len(cwd) == 0:
-        print("Root directory was not found. Try inserting the path manually with 'sys.path.insert(0, absolute_path_to_root)'")
-        sys.exit()
-print("Root directory:", cwd)
-sys.path.insert(0, cwd)
-
-
 import unittest
 import numpy as np
-import interpolation as intp
+from beam import interpolation as intp
 
 
 class TestInterpolation(unittest.TestCase):

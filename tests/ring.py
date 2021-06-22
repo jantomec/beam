@@ -1,22 +1,8 @@
-import os
-import sys
-
-cwd = os.getcwd()
-folder = os.path.basename(cwd)
-while folder != "beam":
-    cwd = os.path.dirname(cwd)
-    folder = os.path.basename(cwd)
-    if len(cwd) == 0:
-        print("Root directory was not found. Try inserting the path manually with 'sys.path.insert(0, absolute_path_to_root)'")
-        sys.exit()
-print("Root directory:", cwd)
-sys.path.insert(0, cwd)
-
 import functools
 import numpy as np
-from system import System
-import mesh
-import postprocessing as postproc
+from beam.system import System
+from beam import mesh
+from beam import postprocessing as postproc
 
 
 def case():
@@ -41,7 +27,7 @@ def case():
     }
 
     (coordinates, elements) = mesh.circle_mesh(
-        R=1, n_elements=11, order=2, material=mat,
+        R=1, n_elements=20, order=2, material=mat,
         reference_vector=np.array([0,0,1]), plane=(0,1),
         starting_node_index=0
     )
@@ -97,6 +83,9 @@ def main():
     limits = (-1.6, 1.6)
     for i in range(0, len(system.time)):
        postproc.line_plot(system, limits, limits, limits, i, include_initial_state=False, savefig=False, camera=(12.0, 33.0))
+
+    # raw_data = postproc.line_plot_raw_data(system, -1)
+    # np.savetxt('ring-raw_data.txt', raw_data[0])
 
 if __name__ == "__main__":
     main()

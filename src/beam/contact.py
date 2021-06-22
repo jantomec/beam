@@ -1,5 +1,5 @@
 import numpy as np
-import elements as ele
+from beam import elements as ele
 
 
 def identify_entities(elements):

@@ -1,24 +1,9 @@
-import os
-import sys
-
-cwd = os.getcwd()
-folder = os.path.basename(cwd)
-while folder != "beam":
-    cwd = os.path.dirname(cwd)
-    folder = os.path.basename(cwd)
-    if len(cwd) == 0:
-        print("Root directory was not found. Try inserting the path manually with 'sys.path.insert(0, absolute_path_to_root)'")
-        sys.exit()
-print("Root directory:", cwd)
-sys.path.insert(0, cwd)
-
 import functools
 import numpy as np
-from system import System
-import mesh
-import postprocessing as postproc
+from beam.system import System
+from beam import mesh
+from beam import postprocessing as postproc
 import matplotlib.pyplot as plt
-import matplotlib
 
 
 def case():
@@ -97,14 +82,18 @@ def main():
     for g in gN:
         gE.append(np.linalg.norm(g[:,1]))
     
-    font = {'family' : 'normal',
-            'size'   : 16}
-    matplotlib.rc('font', **font)
+    plt.rcParams.update({
+        "text.usetex": True,
+        "font.family": "sans-serif",
+        "font.sans-serif": ["Helvetica"],
+        "font.size": 20
+    })
     fig = plt.figure(tight_layout=True)
-    ax = plt.axes()
+    ax = fig.add_subplot(111)
     ax.plot(gE)
     ax.set_xlabel('Time')
     ax.set_ylabel("Gap")
+    # fig.savefig("img1.pdf", bbox_inches='tight')
     plt.show()
 
 if __name__ == "__main__":

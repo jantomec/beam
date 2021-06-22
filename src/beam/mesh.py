@@ -27,7 +27,7 @@ Examples:
 """
 
 import numpy as np
-import elements as elmt
+from beam import elements as elmt
 
 
 def __ele_nodes(ele_id, n_nodes_per_ele):

@@ -1,27 +1,13 @@
-import os
-import sys
-
-cwd = os.getcwd()
-folder = os.path.basename(cwd)
-while folder != "beam":
-    cwd = os.path.dirname(cwd)
-    folder = os.path.basename(cwd)
-    if len(cwd) == 0:
-        print("Root directory was not found. Try inserting the path manually with 'sys.path.insert(0, absolute_path_to_root)'")
-        sys.exit()
-print("Root directory:", cwd)
-sys.path.insert(0, cwd)
-
 import unittest
 import numpy as np
-import interpolation as intp
-import projection as proj
+from beam import interpolation as intp
+from beam import projection as proj
 
 
 class TestProjection(unittest.TestCase):
 
     def test_nearest_point_projection_1(self):
-        correct = np.array([0, 0, 0, 5])
+        correct = np.array([0, 0, 5, 0])
         X = np.array([[0,    0,   0],
                       [10,   0,   0]]).T
         P = np.array( [5,    0,   5])
@@ -33,10 +19,11 @@ class TestProjection(unittest.TestCase):
             X, P,
             s0=0, TOLER=1e-8, MAXITER=10
         )
+        print("PROJJJJJJ", u)
         self.assertTrue(np.allclose(u, correct, rtol=1e-10))
     
     def test_nearest_point_projection_2(self):
-        correct = np.array([-0.23045933, 0.38268789, -0.0406458, -0.4820473])
+        correct = np.array([0.38268789, -0.0406458, -0.4820473, -0.23045933])
         X = np.array([[0,   0,   0  ],
                       [1,   0,   0.4],
                       [1.5, 0.4, 1.0],
