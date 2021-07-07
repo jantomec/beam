@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 def case1(nele, nint):
     """
     In this example, one cantilever beam is bent towards another.
+    Beams are initially touching.
     Contact, static analysis.
     """
     
@@ -79,6 +80,7 @@ def case1(nele, nint):
 def case2(nele):
     """
     In this example, one cantilever beam is bent towards another.
+    Beams are initially with some gap between them.
     Contact, static analysis.
     """
     
