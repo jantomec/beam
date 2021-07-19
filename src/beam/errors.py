@@ -9,5 +9,10 @@ class MeshError(Exception):
 class ProjectionError(Exception):
     pass
 
+
 class MaterialError(Exception):
+    pass
+
+
+class ParameterError(Exception):
     pass
