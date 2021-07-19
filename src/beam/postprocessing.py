@@ -116,18 +116,20 @@ def gap_plot(system, time_step, savefig=False):
     else:
         plt.show()
 
-def contact_force_plot(system, time_step, savefig=False, color=None):
+def contact_force_plot(system, time_step, int_only=False, savefig=False, color=None):
     """
     Return contact force function values along the centreline.
     """
     i = time_step
     plt.title('Time ' + str(np.round(system.time[i], 3)))
     if color is None:
+        f = system.contact_force_function(time_step, int_only=int_only)
         if int_only:
             plt.plot(f[:,0], f[:,1], 'o')
         else:
             plt.plot(f[:,0], f[:,1])
     else:
+        f = system.contact_force_function(time_step, int_only=int_only)
         if int_only:
             plt.plot(f[:,0], f[:,1], 'o', color=color, label=str(int(system.get_number_of_elements()/2))+" elements")
         else:
